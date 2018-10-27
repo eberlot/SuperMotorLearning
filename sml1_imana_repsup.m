@@ -13,7 +13,7 @@ pcmDir          =[baseDir '/pcm_stats'];
 repSupDir       =[baseDir '/repsup_stats'];
 
 % update glmDir when adding new glms
-glmFoSExDir     ={[baseDir '/glmFoSEx/glmFoSEx1'],[baseDir '/glmFoSEx/glmFoSEx2'],[baseDir '/glmFoSEx/glmFoSEx3'],[baseDir '/glmFoSEx/glmFoSEx4']};    
+glmFoSExDir     ={[baseDir '/glmFoSEx_old/glmFoSEx1'],[baseDir '/glmFoSEx_old/glmFoSEx2'],[baseDir '/glmFoSEx_old/glmFoSEx3'],[baseDir '/glmFoSEx_old/glmFoSEx4']};    
 glmTrialDir     ={[baseDir '/glmTrial/glmTrial1'],[baseDir '/glmTrial/glmTrial2'],[baseDir '/glmTrial/glmTrial3'],[baseDir '/glmTrial/glmTrial4']};
 
  
@@ -1251,23 +1251,25 @@ switch(what)
             end % session
         end % subject
         cd(cwd);
-    case 'CHECK_existence'
+    case 'SEARCH_check'
         % check if file exists       
         sn=[4:9,11:25];
         sessN=4;
         exe=[1,2];      
         vararginoptions(varargin,{'sessN'});
         
-        for s=sn
-            for e=exe
-                LDC_file = fullfile(glmFoSExDir{sessN},subj_name{s},sprintf('%s_sess%d_exe%d_LDC.nii',subj_name{s},sessN,e)); % searchlight nifti
-                if exist(LDC_file)
-                    fprintf('Exists - %s sess-%d - exe-%d\n',subj_name{s},sessN,e);
-                else
-                    fprintf('Missing - %s sess-%d - exe-%d\n',subj_name{s},sessN,e);
+        for ss=sessN
+            for s=sn
+                for e=exe
+                    LDC_file = fullfile(glmFoSExDir{ss},subj_name{s},sprintf('%s_sess%d_exe%d_LDC.nii',subj_name{s},ss,e)); % searchlight nifti
+                    if exist(LDC_file)
+                        fprintf('Exists - %s sess-%d - exe-%d\n',subj_name{s},ss,e);
+                    else
+                        fprintf('Missing - %s sess-%d - exe-%d\t!!!\n',subj_name{s},ss,e);
+                    end
                 end
             end
-        end           
+        end
     case 'SEARCH_map'
         sn  = 4;
         sessN = 4;

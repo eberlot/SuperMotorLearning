@@ -894,7 +894,7 @@ switch(what)
         sn  = [23:25];    
         roi = 1:16; 
         roiDefine = 'all'; % determine all regions from region file R
-        parcelType = 'Brodmann'; % 162tessels, Brodmann, cortex_buckner
+        parcelType = 'Brodmann'; % 162tessels, Brodmann, cortex_buckner, BG-striatum
         vararginoptions(varargin,{'sn','sessN','roi','parcelType','roiDefine'});
        
         for ss=sessN            
@@ -954,36 +954,14 @@ switch(what)
                     S.volcoord = {R{r}.data'};
                     S.SN                      = s;
                     S.region                  = r;
-                    if strcmp(parcelType,'162tessels')
-                        if r<159
-                            S.regSide = 1;
-                            S.regType = S.region;
-                        else
-                            S.regSide = 2;
-                            S.regType = S.region-158;
-                        end
-                        if strcmp(roiDefine,'all')==1
-                            S.tesselName          = {R{r}.name};
-                        end
-                    elseif strcmp(parcelType,'Brodmann')
-                        S.flatcoord = {R{r}.flatcoord'};
-                        S.depth = {R{r}.depth'};
-                        if r<9
-                            S.regSide = 1;
-                            S.regType = r;
-                        else
-                            S.regSide = 2;
-                            S.regType = r-8;
-                        end
-                    elseif strcmp(parcelType,'cortex_buckner')
-                        if r<8
-                            S.regSide = 1;
-                            S.regType = r;
-                        else
-                            S.regSide = 2;
-                            S.regType = r-7;
-                        end
+                    if r<(numel(roi)/2)+1
+                        S.regSide = 1;
+                        S.regType = S.region;
+                    else
+                        S.regSide = 2;
+                        S.regType = S.region-(numel(roi)/2);
                     end
+                    S.regName = {R{r}.name}; 
                     T = addstruct(T,S);
                     fprintf('%d.',r)
                     %fprintf('elapsed %d\n',telapsed);

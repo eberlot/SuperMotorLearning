@@ -2,7 +2,8 @@ function varargout=sml1_imana_BG_new(what,varargin)
 
 % ------------------------- Directories -----------------------------------
 baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-behavDir        =[baseDir '/behavioral_data/data'];            
+behavDir        =[baseDir '/behavioral_data/data'];   
+betaDir         =[baseDir '/betas'];
 imagingDir      =[baseDir '/imaging_data'];                     
 anatomicalDir   =[baseDir '/anatomicals'];       
 caretDir        =[baseDir '/surfaceCaret'];              
@@ -1683,21 +1684,14 @@ switch(what)
         end
     case 'ROI_betas' % -------- save betas per glm (per session) - for psc / dist
         sessN = 1;
-        sn  = [4:9,11:22];
-        type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
+        sn  = [4:9,11:28];
         parcelType='BG-striatum'; % options: 1) BG, 2) BG-striatum, 3) BG-striatum-networks
         vararginoptions(varargin,{'sn','sessN','roi','type','parcelType'});
         
         for ss=sessN
-            switch(type)
-                case 'new'
-                    T=[];
-                case 'add'
-                    T=load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
-            end
-            
             % harvest
             for s=sn % for each subj
+                T=[];
                 fprintf('\nSubject: %d\n',s) % output to user
                 cd (fullfile(glmSessDir{ss},subj_name{s}));
                 
@@ -1713,10 +1707,10 @@ switch(what)
                 O{3}='spmT_TrainSeq.nii';
                 O{4}='spmT_UntrainSeq.nii';
                 % searchlights
-                searchDir=fullfile(BGfuncDir,'native',subj_name{s});
-                O{5}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_trained.nii',subj_name{s},ss));
-                O{6}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_untrained.nii',subj_name{s},ss));
-                O{7}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_cross.nii',subj_name{s},ss));
+             %   searchDir=fullfile(BGfuncDir,'native',subj_name{s});
+             %   O{5}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_trained.nii',subj_name{s},ss));
+             %   O{6}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_untrained.nii',subj_name{s},ss));
+             %   O{7}=fullfile(searchDir,sprintf('%s_sess%d_striatum_dist_cross.nii',subj_name{s},ss));
                 
                 P=SPM.Vbeta(SPM.xX.iC);
                 V = SPM.xY.VY;
@@ -1740,15 +1734,18 @@ switch(what)
                     S.psc_untrain  = {data(2,:)};
                     S.Tmap_train   = {data(3,:)};
                     S.Tmap_untrain = {data(4,:)};
-                    S.dist_train   = {data(5,:)};
-                    S.dist_untrain = {data(6,:)};
-                    S.dist_cross   = {data(7,:)};
+              %      S.dist_train   = {data(5,:)};
+              %      S.dist_untrain = {data(6,:)};
+              %      S.dist_cross   = {data(7,:)};
                     
                     S.SN                      = s;
                     S.region                  = r;
                     T = addstruct(T,S);
                     fprintf('%d.',r)
                 end
+                dircheck(fullfile(betaDir,subj_name{s}));
+                save(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'-struct','T');
+                fprintf('\nDone beta extraction for sess%d-%s\n',ss,subj_name{s});
             end
             % save T
             save(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)),'-struct','T');
