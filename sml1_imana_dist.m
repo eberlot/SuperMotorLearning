@@ -974,14 +974,24 @@ switch(what)
     case 'BETA_combineGroup'
         % combine individual subject beta structures into the whole
         % structure
-        type = 'add'; % new or add - if creating from scratch (no subject or adding new ones only)
-        vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine'});
-
-        switch(type)
-            case 'new'
-                T=[];
-            case 'add'
-                T=load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+        sessN=[1:4];
+        sn=[4:9,11:28];
+        type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
+        parcelType='Brodmann';
+        vararginoptions(varargin,{'sn','sessN','roi','betaChoice','type','parcelType'});
+        
+        for ss=sessN
+            switch(type)
+                case 'new'
+                    T=[];
+                case 'add'
+                    T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            end   
+            for s=sn
+                S=load(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d',parcelType,subj_name{s},ss)));
+                T=addstruct(T,S);
+            end
+            save(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)),'-struct','T');
         end
     case 'BETA_get_LOC'
         % for localizer  
@@ -1022,8 +1032,7 @@ switch(what)
         fprintf('\n');  
     case 'BETA_stats'                                                        % STEP 5.8   :  Calculate stats/distances on activity patterns - train/untrain seq
         sessN = 4;
-        sn=[5:9,11:15];
-        %sn  = [1:9,11,12];
+        sn=[4:9,11:28];
         roi = [1:16];
         roiDefine = 'all'; % determine from region file
         betaChoice = 'multi'; % uni, multi or raw
@@ -1034,7 +1043,7 @@ switch(what)
         vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine'});
         
         for ss=sessN;
-            T = load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss))); % loads region data (T)
+            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss))); % loads region data (T)
             if strcmp(roiDefine,'all')==1
                 roi=unique(T.region)';
             end
@@ -1045,7 +1054,7 @@ switch(what)
                 case 'new'
                     To=[];
                 case 'add'
-                    To=load(fullfile(regDir,sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)));
+                    To=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)));
             end
             g_ind=1;
             % do stats
@@ -1112,18 +1121,12 @@ switch(what)
                     % indexing fields
                     So.SN       = s;
                     So.region   = r;
-                    switch(parcelType)
-                        case 'Brodmann'
-                            So.regSide  = regSide(r);
-                            So.regType  = regType(r);
-                        case '162tessels'
-                            if r<159
-                                So.regSide = 1;
-                                So.regType=So.region;
-                            else
-                                So.regSide = 2;
-                                So.regType=So.region-158;
-                            end
+                    if r<(numel(roi)/2)+1
+                        So.regSide = 1;
+                        So.regType = So.region;
+                    else
+                        So.regSide = 2;
+                        So.regType = So.region-(numel(roi)/2);
                     end
                     % data structure
                     To          = addstruct(To,So); % indexing fields, other images
@@ -1138,8 +1141,7 @@ switch(what)
             end
             
             % % save - stats data and simulations
-
-            save(fullfile(regDir,sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)),'-struct','To');
+            save(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)),'-struct','To');
             if simulations==1
                 save(fullfile(regDir,sprintf('stats_%s_%sPW_SIMULATIONS_sess%d.mat',regType,betaChoice,ss)),'-struct','Po');
             end
@@ -4025,7 +4027,7 @@ switch(what)
         TT=[];
         for ss=sessN
             fprintf('\n\nSession %d\n',ss);
-            V=load(fullfile(regDir,sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
+            V=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
             for s=sn
                 fprintf('\nSubject: %d\n',s) % output to user
                 load(fullfile(regDir,[subj_name{s} sprintf('_%s_regions.mat',parcelType)]));  % load subject's region parcellation (R)
@@ -4051,7 +4053,6 @@ switch(what)
                 end
             end
         end
-        keyboard;
         save(fullfile(distPscDir,sprintf('cluster_RDM_dist_%s',parcelType)),'-struct','TT');
     case 'CLUSTER_acrossROI'
         sn=[4:9,11:25];
