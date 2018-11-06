@@ -245,7 +245,65 @@ switch(what)
                         % spmj_normalization_write(nam_def, OUT,'outimages',OUT_MNI);
                     end
                 end           
-        end    
+        end   
+    case 'ANAT_thalamus_segment' % same for thalamus
+        % uses FSL to do segmentation for BG and ?map the regions 
+        % option3 - space: native / FNIRT or SPM space
+        % need to run MATLAB through terminal
+        % command: /Applications/MATLAB_R2015b.app/bin/matlab
+        
+        % 1) Run step 1: sml1_imana_BG('ANAT_bg_segment',1,1,'native') / sml1_imana_prep('BG_FSLmask',1,1)
+        % 2) Open the zip folder s01_BG_all_fast_firstseg.nii.gz
+        % 3) Run step 2
+        
+        sn = varargin{1};
+        step = varargin{2};
+        space = varargin{3}; % native only for now
+        
+        switch (step)
+            case 1 % run FSL routine
+                for s=sn%1:numel(subj_name)
+                    
+                    IN= fullfile(anatomicalDir, subj_name{s}, [subj_name{s}, '_anatomical.nii']);
+                    
+                    outDir = fullfile(BGanatDir, space);
+                    dircheck(outDir);
+                    OUT= fullfile(outDir, subj_name{s}, [subj_name{s},'_',space,'_tja.nii']);
+                    %calc with FSL
+                    comm=sprintf('run_first_all -i %s -o %s', IN, OUT);
+                    fprintf('%s\n',comm);
+                    system(comm);
+                end
+            case 2 % make the ROI images in subject space
+                %         10 Left-Thalamus-Proper 40
+                %         11 Left-Caudate 30
+                %         12 Left-Putamen 40
+                %         13 Left-Pallidum 40
+                %         49 Right-Thalamus-Proper 40
+                %         50 Right-Caudate 30
+                %         51 Right-Putamen 40
+                %         52 Right-Pallidum 40
+                BGnumber= [11 13 12 10; 50 52 51 49];
+                %'CaudateN' 'Pallidum', 'Putamen' 'Thalamus'
+                
+                for s=sn%1:numel(subj_name)
+                    %----deform info for basal ganglia ROI to individual space
+                    
+                    for h=1:2
+                        for i=1:numregions_BG
+                            fprintf('Working on subj: %i region: %s \n', s, [regname_BG{i},'_',hem{h}])
+                            
+                            subjBGDir=fullfile(BGanatDir,space,subj_name{s});
+                            %----get names!
+                            IN= fullfile(subjBGDir,[subj_name{s},'_',space,'_BG_all_fast_firstseg.nii']);                   
+                            %----make subj specific ROI image
+                            spm_imcalc_ui(IN,OUT{i},sprintf('i1==%d',BGnumber(h,i)));
+                        end
+                        %----do deformation
+                        % spmj_normalization_write(nam_def, OUT,'outimages',OUT_MNI);
+                    end
+                end           
+        end   
     case 'ANAT_mni_brain_subjAvrg'          % make average MNI template from subjects - whole brain
         sn=[4:9,11:25];
         template='SPM'; 
@@ -454,65 +512,7 @@ switch(what)
             title(sprintf('%s DICE',hem{f}));
         end
         plt.match('y');  
-     
-    case 'ANAT_thalamus_segment' % same for thalamus
-        % uses FSL to do segmentation for BG and ?map the regions 
-        % option3 - space: native / FNIRT or SPM space
-        % need to run MATLAB through terminal
-        % command: /Applications/MATLAB_R2015b.app/bin/matlab
-        
-        % 1) Run step 1: sml1_imana_BG('ANAT_bg_segment',1,1,'native') / sml1_imana_prep('BG_FSLmask',1,1)
-        % 2) Open the zip folder s01_BG_all_fast_firstseg.nii.gz
-        % 3) Run step 2
-        
-        sn = varargin{1};
-        step = varargin{2};
-        space = varargin{3}; % native only for now
-        
-        switch (step)
-            case 1 % run FSL routine - this is already run for BG
-                for s=sn%1:numel(subj_name)
-                    
-                    IN= fullfile(anatomicalDir, subj_name{s}, [subj_name{s}, '_anatomical.nii']);
-                    
-                    outDir = fullfile(BGanatDir, space);
-                    dircheck(outDir);
-                    OUT= fullfile(outDir, subj_name{s}, [subj_name{s},'_',space,'_BG.nii']);
-                    %calc with FSL
-                    comm=sprintf('run_first_all -i %s -o %s', IN, OUT);
-                    fprintf('%s\n',comm);
-                    system(comm);
-                end
-            case 2 % make the ROI images in subject space
-                %         10 Left-Thalamus-Proper 40
-                %         11 Left-Caudate 30
-                %         12 Left-Putamen 40
-                %         13 Left-Pallidum 40
-                %         49 Right-Thalamus-Proper 40
-                %         50 Right-Caudate 30
-                %         51 Right-Putamen 40
-                %         52 Right-Pallidum 40
-                BGnumber= [10; 49];
-                %'CaudateN' 'Pallidum', 'Putamen' 'Thalamus'
-                
-                for s=sn%1:numel(subj_name)
-                    %----deform info for basal ganglia ROI to individual space
-                    
-                    for h=1:2
-                        fprintf('Working on subj: %i region: Thalamus-%s \n', s, hem{h});
-                        
-                        subjBGDir=fullfile(BGanatDir,space,subj_name{s});
-                        %----get names!
-                        IN= fullfile(subjBGDir,[subj_name{s},'_',space,'_BG_all_fast_firstseg.nii']);
-                        %----make subj specific ROI image
-                        OUT{h}= fullfile(subjBGDir,[subj_name{s},'_Thalamus_',hem{h},'.nii']);
-                        spm_imcalc_ui(IN,OUT{h},sprintf('i1==%d',BGnumber(h)));
-                        %----do deformation
-                        % spmj_normalization_write(nam_def, OUT,'outimages',OUT_MNI);
-                    end
-                end
-        end
-        
+          
     case '0_SEARCH'                         % ------------------- SEARCHLIGHT  -----------------
     case 'SEARCH_striatum_define'           % define searchlights in striatum (caudate, putamen)
         sn=11;
@@ -1392,7 +1392,7 @@ switch(what)
                 end
         end        
         fprintf('Masked the Buckner map to fit functional mask.\n');
-    case 'FUNC_MASK_individSubj'    %    create striatal masks for each subject
+    case 'FUNC_MASK_individSubj'    % create striatal masks for each subject
         maskType='striatum'; % whole BG or striatum
         maskNum = 2; % 1 - overall, 2 - per hemisphere
         sn=[4:9,11:25];
@@ -1721,27 +1721,7 @@ switch(what)
         save(sprintf('group_MNI_%s_regions.mat',regType),'R');
         
         fprintf('\nROIs %s have been defined for group \n',regType);
-    case 'ROI_define_thalamus'
-        sn=4;
-        regType='thalamus'; % BG, striatum, networks, striatum_buckner (change the other networks name)
-        vararginoptions(varargin,{'sn','regType'});       
-        for s=sn
-            R=[];
-            for h=1:2
-                % get thalamus
-                fileT = fullfile(BGanatDir,'native',subj_name{s},sprintf('%s_Thalamus_%s.nii', subj_name{s},  hem{h}));
-                R{h}.name = [subj_name{s} '_Thalamus_' hem{h}];
-                R{h}.value = 1;
-                R{h}.type = 'roi_image';
-                R{h}.file= fileT;
-            end
-            R=region_calcregions(R);          
-            cd(regDir);
-            save([subj_name{s} sprintf('_%s_regions.mat',regType)],'R');
-            
-            fprintf('\nROIs %s defined for: %s \n',regType,subj_name{s});
-        end
-        
+
     case 'ROI_make_nii'                                                     % OPTIONAL   :  Convert ROI def (.mat) into multiple .nii files (to check!)
         parcelType   = 'striatum_buckner';
         parcelFolder = 'striatum_buckner';

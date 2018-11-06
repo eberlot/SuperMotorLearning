@@ -73,6 +73,6 @@ C = kmeans(U, k, 'start', 'cluster', ...
                   
 % now convert C to a n-by-k matrix containing the k indicator
 % vectors as columns
-C = sparse(1:size(D, 1), C, 1);
+%C = sparse(1:size(D, 1), C, 1);
 
 end
