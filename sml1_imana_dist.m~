@@ -4459,8 +4459,8 @@ switch(what)
             regType = roi;
             regType(regSide==2)=regType(regSide==2)-162;
         end      
-        for s=1:numel(sn)
-            T1 = getrow(T,T.sn==sn(s));
+        for s1=1:numel(sn)
+            T1 = getrow(T,T.sn==sn(s1));
             for i=1:numel(roi)*numel(sessN)
                 for j=i:numel(roi)*numel(sessN)
                     D1 = getrow(T1,i);
@@ -4475,21 +4475,17 @@ switch(what)
                         corrDist = mean([c1 c2 c3 c4]);
                     end
                     R.corrDist  = corrDist;
-                    R.roi1      = D1.roi;
-                    R.roi2      = D2.roi;
-                    R.regType1  = D1.regType;
-                    R.regType2  = D2.regType;
-                    R.regSide1  = D1.regSide;
-                    R.regSide2  = D2.regSide;
-                    R.sn        = sn(s);
+                    R.roi       = D1.roi;
+                    R.regType   = D1.regType;
+                    R.regSide   = D2.regSide;
+                    R.sn1       = S{g}(s1);
+                    R.sn2       = S{g}(s2);
                     RR=addstruct(RR,R);
-                    % also form a matrix
-                    M(j,i,s)=R.corrDist;
                 end
             end
-            fprintf('Done subject %d/%d\n',s,numel(sn));
+            fprintf('Done group%d: %d/%d\n',g,s1,size(S{g},2));
         end
-        keyboard;
+        
         save(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,sessN)),'-struct','RR');
     case 'CLUSTER_consist_subj'
         % estimate the consistency of RDMs in each tessel
@@ -4618,7 +4614,11 @@ switch(what)
             end
         end
         
-
+    case 'job1'
+       sml1_imana_dist('CLUSTER_extractROI_crossvalBetas','sn',[4:9,11:28,30]);
+       sml1_imana_dist('CLUSTER_consist','sessN',4);
+       sml1_imana_prep('PREP_dicom_import','sn',29,'sessN',[2,4]);
+       sml1_imana_prep('PREP_dicom_import','sn',29,'sessN',[2,4],'series_type','fieldmap');
     otherwise
         disp('there is no such case.')
 end;    % switch(what)
