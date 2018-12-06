@@ -4450,7 +4450,7 @@ switch(what)
         T1.eigenv    = U;
         switch sessType
             case 'within'
-                save(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)),'-struct','T1');
+                save(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),maxClust,parcelType)),'-struct','T1');
             case 'across'
                 save(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)),'-struct','T1');
         end
@@ -4739,7 +4739,7 @@ switch(what)
         vararginoptions(varargin,{'sn','sessN','parcelType','sessType','seqType','distType','crossType','maxClust','seqType'});
         switch sessType
             case 'within'
-                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),maxClust,parcelType)));
             case 'across'
                 T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)));
         end
@@ -4793,22 +4793,6 @@ switch(what)
             case 'across'
                 dlmwrite(sprintf('my%dColors_%sSess-%d-%d_%sSeq_%s.txt',Ncluster,sessType,sessN(1),sessN(end),seqType,crossType),Col);
          end       
-    case 'CLUSTER_surface' 
-        % plot group cluster assignment on the surface
-        % across or within session
-        % splithalf or all runs
-        % trained or all seq
-        parcelType  = '162tessels'; % Brodmann or 162tessels; or combined
-        seqType     = 'all'; % all, trained, untrained
-        sessType    = 'within'; % within or across
-        crossType   = 'all'; % all or splithalf
-        distType    = 'cosine'; % distance type
-        sessN       = 4;
-        maxClust    = 10;
-        var='cluster'; % community or cluster
-        vararginoptions(varargin,{'var','sn','sessN','parcelType','sessType','seqType','distType','crossType','maxClust','seqType'});
-        
-        cd(clusterDir);
     case 'CLUSTER_consist_reg'
           % estimate the consistency of RDMs in each tessel
         % both within and across subjects
@@ -5032,7 +5016,53 @@ switch(what)
                 caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.consistRDM_sess%d.metric',hem{h},ss)),R);
             end
         end
+     
         
+    case 'CLUSTER_surface'
+        distType='cosine';
+        parcelType='162tessels';
+        sessN=[1:2];
+        maxClust=10;
+        sessType='within';
+        seqType='all'; % all, trained, untrained
+        var='cluster';
+        crossType='all'; % all or splithalf
+        vararginoptions(varargin,{'distType','maxClust','parcelType','sessN','sessType','seqType','crossType'});
+        
+        switch sessType
+            case 'within'
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),maxClust,parcelType)));
+                clustN = length(unique(T.(var)));
+                colMap = dlmread(sprintf('my%dColors_%sSess-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),seqType,crossType));
+            case 'across'
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)));
+                clustN = length(unique(T.(var)));
+                colMap = dlmread(sprintf('my%dColors_%sSess-%d-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),sessN(end),seqType,crossType));
+        end
+
+        for h=1:2
+            C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+            % per hemisphere
+            RGBdata=zeros(size(C.data,1),3);
+            for ss=sessN
+                for k=1:clustN
+                    S=getrow(T,T.RegSide==h & T.(var)==k & T.sessN==ss);
+                    % data from that hemi, tessel, per cluster
+                    indx=C.index(ismember(C.data,S.RegType));    % indicate the right tessel
+                    RGBdata(indx,1)=colMap(k,1);
+                    RGBdata(indx,2)=colMap(k,2);
+                    RGBdata(indx,3)=colMap(k,3);
+                    scale=[1;1;1];
+                end
+                scale(1:clustN,1)=0;
+                scale(1:clustN,2)=1;
+                
+                name={sprintf('clusters-%d_%sSeq_%sSess%d_%s',clustN,seqType,sessType,ss,crossType)};
+                R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
+                
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.clusters-%d_%sSeq_%sSess%d_%s.RGB_paint',hem{h},clustN,seqType,sessType,ss,crossType)),R);
+            end
+        end    
     case 'CLUSTER_surface_crossval'
         var='cluster'; % community or cluster
         parcelType='162tessels';
@@ -5296,52 +5326,8 @@ switch(what)
         figure
         plt.bar(RR.clustN,RR.similarity,'split',RR.withinOut);
 
-    case 'CLUSTER_surface'
-        distType='cosine';
-        parcelType='162tessels';
-        sessN=[1:2];
-        clustN=10;
-        sessType='within';
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'distType','clustN','parcelType','sessN','sessType'});
-        
-        colMap = dlmread(sprintf('my%dColors.txt',clustN));
-
-        switch sessType
-            case 'within'
-                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
-                clustN = length(unique(T.(var)));
-                colMap = dlmread(sprintf('my%dColors_%sSess-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),seqType,crossType));
-            case 'across'
-                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)));
-                clustN = length(unique(T.(var)));
-                colMap = dlmread(sprintf('my%dColors_%sSess-%d-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),sessN(end),seqType,crossType));
-        end
-
-        for h=1:2
-            C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
-            % per hemisphere
-            RGBdata=zeros(size(C.data,1),3);
-            for ss=sessN
-                for k=1:clustN
-                    S=getrow(T,T.RegSide==h & T.(var)==k & T.sessN==ss);
-                    % data from that hemi, tessel, per cluster
-                    indx=C.index(ismember(C.data,S.RegType));    % indicate the right tessel
-                    RGBdata(indx,1)=colMap(k,1);
-                    RGBdata(indx,2)=colMap(k,2);
-                    RGBdata(indx,3)=colMap(k,3);
-                    scale=[1;1;1];
-                end
-                scale(1:clustN,1)=0;
-                scale(1:clustN,2)=1;
-                
-                name={sprintf('clusters-%d_%sSeq_%sSess%d_%s',clustN,seqType,sessType,ss,crossType)};
-                R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
-                
-                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.clusters-%d_%sSeq_%sSess%d_%s.RGB_paint',hem{h},clustN,seqType,sessType,ss,crossType)),R);
-            end
-        end
-    case 'CLUSTER_surface_crossval_individ' % TO DO
+   
+    case 'CLUSTER_surface_crossval_individ_old' % TO DO
         % separately for each individual
         var='cluster'; % community or cluster
         parcelType='162tessels';
@@ -5414,163 +5400,18 @@ switch(what)
         end
     
         
-        
-    case 'CLUSTER_sort'
-        var='cluster'; % cluster or community
-        parcelType='162tessels';
-        clustN=9;
-        hemi=[1,2];
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
-        
-        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
-        
-        T1 = getrow(T,ismember(T.RegSide,hemi));
-        % Evaluate similarity graph (W)
-        [Asort,idx]=sort(T1.(var));
-        W = full(T.A);
-        Wsort=W(idx,:);
-        Wsort=Wsort(:,idx);
-        figure
-        imagesc(Wsort);
-    case 'CLUSTER_sort_subj'
-        var='cluster'; % cluster or community
-        parcelType='162tessels';
-        clustN=9;
-        hemi=[1,2];
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
-        
-        load(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
-        sn=1:size(A,2);
-        figure
-        for s=sn
-            T=A{s};
-            T1 = getrow(T,ismember(T.RegSide,hemi));
-            % Evaluate similarity graph (W)
-            [Asort,idx]=sort(T1.(var));
-            W = full(T.A);
-            Wsort=W(idx,:);
-            Wsort=Wsort(:,idx);
-            subplot(5,5,s);
-            imagesc(Wsort);
-        end
-    case 'CLUSTER_hierarchy'
-        % calculates similarity within / across clusters for group
-        var='cluster'; % Clust or Community
-        parcelType='162tessels';
-        sessN=[1:4];
-        clustN=9;
-        hemi=1;
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'var','clustN','parcelType','sesN','sessType','seqType','hemi'});
-        
-        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
-        
-        AA=[];
-        for ss=sessN
-            T1 = getrow(T,T.sessN==ss&ismember(T.RegSide,hemi));
-            indx = find(T.sessN==ss&ismember(T.RegSide,hemi));
-            T1.A = T.A(indx,indx);
-            T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
-            clust = unique(T1.(var));
-            M{ss} = zeros(length(clust));
-            for c1=1:length(clust)
-                idx1=find(T1.(var)==clust(c1)); % index for all tessels in that cluster
-                if size(idx1,1)>1
-                    for c2=c1:length(clust)
-                        idx2=find(T1.(var)==clust(c2)); % all other tessels
-                        dist11 = T1.A(idx1,idx1);
-                        dist22 = T1.A(idx2,idx2);
-                        dist12 = T1.A(idx1,idx2);
-                        M{ss}(c1,c1) = nanmean(dist11(:));
-                        M{ss}(c2,c2) = nanmean(dist22(:));
-                        M{ss}(c1,c2) = nanmean(dist12(:));
-                        M{ss}(c2,c1) = nanmean(dist12(:));
-                    end
-                end
-            end
-        end
-    case 'CLUSTER_hierarchy_acrossSess'
-          % calculates similarity within / across clusters for group
-        var='cluster'; % cluster or community
-        parcelType='162tessels';
-        clustN=9;
-        hemi=[1,2];
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
-        
-        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
-        
-        AA=[];
-        T1 = getrow(T,ismember(T.RegSide,hemi));
-        indx = find(ismember(T.RegSide,hemi));
-        T1.A = T.A(indx,indx);
-        T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
-        for c=unique(T1.(var))'
-            idxc=find(T1.(var)==c); % index for all tessels in that cluster
-            if size(idxc,1)>1
-                idxnc=find(T1.(var)~=c); % all other tessels
-                distClust = T1.A(idxc,idxc);
-                distOut   = T1.A(idxc,idxnc);
-                t1=rsa_vectorizeRDM(distClust);
-                t2=distOut(:);
-                A.similarity(1,:)    = nanmean(t1);
-                A.similarity(2,:)    = nanmean(t2);
-                A.withinOut          = [1;2];
-                A.numTesselIn        = repmat(length(idxc),2,1);
-                A.clustN             = repmat(c,2,1);
-                AA=addstruct(AA,A);
-            end
-            clear idxc idxnc distClust distOut;
-        end
-        figure
-        plt.bar(AA.clustN,AA.similarity,'split',AA.withinOut);
-    case 'CLUSTER_hierarchy_perSubj'
-           % calculates similarity within / across clusters for group
-        var='cluster'; % cluster or community
-        parcelType='162tessels';
-        clustN=9;
-        hemi=[1,2];
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
-        
-        load(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
-        
-        RR=[];
-        sn=1:size(A,2);
-        for s=sn
-        T = A{s};
-        T1 = getrow(T,ismember(T.RegSide,hemi));
-        indx = find(ismember(T.RegSide,hemi));
-        T1.A = T.A(indx,indx);
-        T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
-        for c=unique(T1.(var))'
-            idxc=find(T1.(var)==c); % index for all tessels in that cluster
-            if size(idxc,1)>1
-                idxnc=find(T1.(var)~=c); % all other tessels
-                distClust = T1.A(idxc,idxc);
-                distOut   = T1.A(idxc,idxnc);
-                t1=rsa_vectorizeRDM(distClust);
-                t2=distOut(:);
-                R.similarity(1,:)    = nanmean(t1);
-                R.similarity(2,:)    = nanmean(t2);
-                R.withinOut          = [1;2];
-                R.numTesselIn        = repmat(length(idxc),2,1);
-                R.clustN             = repmat(c,2,1);
-                R.sn                 = repmat(s,2,1);
-                RR=addstruct(RR,R);
-            end
-            clear idxc idxnc distClust distOut;
-        end
-        end
-        figure
-        plt.bar(RR.clustN,RR.similarity,'split',RR.withinOut);
      
     case 'job2'
-        sml1_imana_dist_tmp('BETA_get','sn',[29],'sessN',[2:4],'parcelType','Brodmann');
-        sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','thalamus');
-        sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','BG-striatum');
+        for c=4:10 % different number of clusters
+            sml1_imana_dist('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
+            sml1_imana_dist('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
+          %  sml1_imana_dist('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
+          %  sml1_imana_dist('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
+            sml1_imana_dist('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
+            sml1_imana_dist('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
+            fprintf('Done cluster %d\n',c);
+        end
+
     case 'job'
         % first preprocess s29,s31
 %         sml1_imana_prep('GLM_sess_all','sn',29,'sessN',4);
