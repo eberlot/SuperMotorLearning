@@ -5306,7 +5306,7 @@ switch(what)
         vararginoptions(varargin,{'distType','clustN','parcelType','sessN','sessType'});
         
         colMap = dlmread(sprintf('my%dColors.txt',clustN));
->>>>>>> origin/master
+
         switch sessType
             case 'within'
                 T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
@@ -5567,9 +5567,6 @@ switch(what)
         figure
         plt.bar(RR.clustN,RR.similarity,'split',RR.withinOut);
      
-    case 'job'
->>>>>>> origin/master
-
     case 'job2'
         sml1_imana_dist_tmp('BETA_get','sn',[29],'sessN',[2:4],'parcelType','Brodmann');
         sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','thalamus');
