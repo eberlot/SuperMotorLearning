@@ -48,11 +48,11 @@ numruns_task_sess = 8;
 numruns_loc_sess  = 2;
 
 % total - per subject (the total in the end will always be 40)
-numruns           = [40 40 40 40 40 40 40 40 40 30 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 30 40 30];
+numruns           = [40 40 40 40 40 40 40 40 40 30 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40];
 
 sess = [repmat(1,1,10),repmat(2,1,10),repmat(3,1,10),repmat(4,1,10)];   % all sessions
 
-sess_sn = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3,4,3];    % per subject
+sess_sn = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4];    % per subject
 
 run_task   = [1:3 5:7 9:10;
               11:13 15:17 19:20;
@@ -339,7 +339,7 @@ NiiRawName{3}  = {'170815144204DST131221107523418932',...
                   '2018_08_16_S28',...
                   '2018_10_16_S29',...
                   '2018_10_29_S30',...
-                  ''};  
+                  '2018_10_15_S31'};  
 NiiRawName{4}  = {'170816090254DST131221107523418932',...
                   '170823091559DST131221107523418932',...
                   '170825085040DST131221107523418932',...
@@ -370,7 +370,7 @@ NiiRawName{4}  = {'170816090254DST131221107523418932',...
                   '2018_08_17_S28',...
                   '2018_11_08_S29',...
                   '2018_10_31_S30',...
-                  ''};
+                  '2018_11_09_S31'};
 
 fscanNum{1}   = {[16 18 20 22 24 26 28 30 32 34],...
                  [16 18 20 22 24 26 28 30 32 34],...
@@ -1422,7 +1422,7 @@ loc_AC     = {[-112 -165 -176],...
         T			 = [];
         dur			 = 2.5;                                                 % secs (length of task dur, not trial dur)
         % adjusting hrf per subject & session based on extracted timeseries!  
-        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1 0 1 1.5 1 1 1 1 1 1 0.5 0 1 1 1 1];  
+        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1 0 1 1.5 1 1 1 1 1 1 0.5 0 1 1 1 1 1];  
         %delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1 0 0.5 1.5];  
         
         announceTime = 0;                                                 % length of task announce time - currently not used
@@ -1621,7 +1621,7 @@ loc_AC     = {[-112 -165 -176],...
         prefix		 = 'u';
         dur			 = 2.5;                                                 % secs (length of task dur, not trial dur)
         %delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1];              % adjusting hrf per subject based on extracted timeseries!
-        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 0.5 0.5 0 0.5 1 0.5 1 1 1 1 1 1]; 
+        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 0.5 0.5 0 0.5 1 0.5 1 1 1 1 1 1 1 1 1 1 1 1]; 
         announceTime = 0;                                                   % length of task announce time - currently not used
         % Gather appropriate GLM presets.
         switch glm
@@ -3072,11 +3072,46 @@ loc_AC     = {[-112 -165 -176],...
             suit_reslice_inv(source, defMat,'reference',refImage,'prefix', 'subjspace_'); %ROI_cerebellum_orig is now in subject space!!!
         end;    
     
-    case 'job'
-     %  sml1_imana_prep('PREP_dicom_import','sn',31,'sessN',[3,4]);
-     %  sml1_imana_prep('PREP_dicom_import','sn',31,'sessN',[3,4],'series_type','fieldmap');
-       sml1_imana_prep('PREP_process1_func','sn',29,'sessN',4);
-    otherwise
+    case 'job1'
+      %  sml1_imana_prep('ROI_define','sn',[29,31],'parcelType','Brodmann');
+        sml1_imana_BG_new('ROI_define_BG','sn',[29,31],'regType','BG-striatum');
+        sml1_imana_BG_new('ROI_define_thalamus','sn',[29,31]);
+    case 'job2'
+        sml1_imana_prep('GLM_estimate_RepSup','sessN',3,'sn',[4:9,11:25]);
+    case 'job3'
+        sml1_imana_prep('GLM_contrast_RepSup','sn',[4:9,11:31],'sessN',[1,2,4]);
+
+    case 'subjStruct'
+        sn=[4:9,11:28,30];
+        sessN = 1;
+        vararginoptions(varargin,{'sn','sessN'});
+        T=[];
+        for ss = sessN
+            for s = sn
+                D = dload(fullfile(behavDir,['sml1_',subj_name{s},'.dat']));
+                
+                L = getrow(D,D.ScanSess==ss);    % only blocks of that scan session
+                if ss == 4
+                    Rr = getrow(L,L.blockType==9); %blockType==9 - func imaging run without metronome
+                else
+                    Rr = getrow(L,L.blockType==3); %blockType==3 - funct imaging run with metornome
+                end   
+                for c = 1:numel(num_seq)
+                    t = getrow(Rr,Rr.seqNumb==c);
+                    % Do some subject info for fields in SPM_info.mat.
+                    S.SN    		= s;
+                    S.sessN  		= ss;    
+                    S.seqNumb       = c;
+                    S.seqType       = unique(t.seqType);
+                    S.presses       = [t.press0(1) t.press1(1) t.press2(1) t.press3(1) t.press4(1) t.press5(1) t.press6(1) t.press7(1) t.press8(1)];
+                    S.pressID       = unique(t.cueP);
+                    T				= addstruct(T,S);
+                end;
+                
+            end
+        end
+        keyboard;
+       otherwise
         disp('there is no such case.')
 end;    % switch(what)
 end

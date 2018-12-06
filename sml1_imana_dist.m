@@ -1,8 +1,11 @@
 function varargout=sml1_imana_dist(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-behavDir        =[baseDir '/behavioral_data/data'];            
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+betaDir         =[baseDir '/betas'];
+behavDir        =[baseDir '/behavioral_data/data'];
+clusterDir      =[baseDir '/cluster'];
 imagingDir      =[baseDir '/imaging_data'];                     
 anatomicalDir   =[baseDir '/anatomicals'];       
 caretDir        =[baseDir '/surfaceCaret'];              
@@ -50,12 +53,12 @@ numruns_task_sess = 8;
 numruns_loc_sess  = 2;
 
 % total - per subject (the total in the end will always be 40)
-numruns           = [40 40 40 40 40 40 40 40 40 30 40 40 40 40 40 40 40 40 40 40 40 30 40];
+numruns           = [40 40 40 40 40 40 40 40 40 30 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40 40];
 numruns_task      = 32;
 numruns_loc       = 8;
 sess = [repmat(1,1,10),repmat(2,1,10),repmat(3,1,10),repmat(4,1,10)];   % all sessions
 
-sess_sn = [4,4,4,4,4,4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,3,4];    % per subject
+sess_sn = [4,4,4,4,4,4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4];    % per subject
 
 run_task   = [1:3 5:7 9:10;
               11:13 15:17 19:20;
@@ -97,7 +100,7 @@ hemName   = {'LeftHem','RightHem'};                                         % fr
 
 subj_name  = {'s01','s02','s03','s04','s05','s06','s07','s08','s09','s10',...
               's11','s12','s13','s14','s15','s16','s17','s18','s19','s20',...
-              's21','s22','s23','s24','s25','s26','s27','s28','s29','s30'};  
+              's21','s22','s23','s24','s25','s26','s27','s28','s29','s30','s31'};  
 
 
 % -------------------------- For plotting ---------------------------------
@@ -929,25 +932,26 @@ switch(what)
                     % determine if any voxels for that parcel
                     if size(R{r}.data,1)==0 % no voxels
                         % make data into NaN
-                        S.betaW                   = NaN;
-                        S.betaUW                  = NaN;
-                        S.betaRAW                 = NaN;
-                        S.resMS                   = NaN;
+                        S.betaW                   = {NaN};
+                        S.betaUW                  = {NaN};
+                        S.betaRAW                 = {NaN};
+                        S.resMS                   = {NaN};
                         S.psc_train   = NaN;
                         S.psc_untrain = NaN;
                     else
                         Y = region_getdata(V,R{r});  % Data Y is N x P
                         data = region_getdata(oP,R{r}); % from added images
-                        
+                        % exclude any missing data in voxels
+                        idx = find(Y(1,:));
                         % estimate region betas
-                        [betaW,resMS,SW_raw,beta] = rsa.spm.noiseNormalizeBeta(Y,SPM,'normmode','overall');
+                        [betaW,resMS,SW_raw,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','overall');
                         S.betaW                   = {betaW};                             % multivariate pw
                         S.betaUW                  = {bsxfun(@rdivide,beta,sqrt(resMS))}; % univariate pw
                         S.betaRAW                 = {beta};
                         S.resMS                   = {resMS};
                         % info from maps for surface
-                        S.psc_train   = {data(1,:)};
-                        S.psc_untrain = {data(2,:)};
+                        S.psc_train   = {data(1,idx)};
+                        S.psc_untrain = {data(2,idx)};
                     end
                     
                     % voxel position
@@ -969,7 +973,7 @@ switch(what)
                     %fprintf('elapsed %d\n',telapsed);
                 end
                 dircheck(fullfile(betaDir,subj_name{s}));
--                save(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'-struct','T');
+                save(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'-struct','T');
                 fprintf('\nDone beta extraction for sess%d-%s\n',ss,subj_name{s});
             end            
         end
@@ -988,19 +992,120 @@ switch(what)
                     T=[];
                 case 'add'
                     T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+                    T=getrow(T,T.SN~=29 & T.SN~=31);
             end   
             fprintf('subjects added for sess-%d:\n',ss);
             for s=sn
                 S=load(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d',parcelType,subj_name{s},ss)));
-                S.regName(1,:) = {sprintf('%s_Putamen_lh',subj_name{s})};
-                S.regName(2,:) = {sprintf('%s_CaudateN_lh',subj_name{s})};
-                S.regName(3,:) = {sprintf('%s_Putamen_rh',subj_name{s})};
-                S.regName(4,:) = {sprintf('%s_CaudateN_rh',subj_name{s})};
-                T=addstruct(T,S);
+              T=addstruct(T,S);
+
                 fprintf('%d.',s);
             end
             save(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)),'-struct','T');
         end
+    case 'BETA_splitHalf'
+          % crossvalidated version - separately for even and odd runs
+        sn=[4:9,11:31];
+        sessN=[1:4];
+        parcelType='162tessels'; % Brodmann or 162tessels
+        betaChoice='multi';
+        vararginoptions(varargin,{'sn','sessN','parcelType','betaChoice'});
+        
+        TT=[];
+        nRun  = 8;
+        nCond = 12;
+        pVec  = kron([1:nRun]',ones(nCond,1));
+        idxA = mod(pVec,2)==1; % split even and odd runs
+        idxB = mod(pVec,2)==0;
+        cVec  = kron(ones(nRun/2,1),[1:nCond]');   % for each partition
+        
+        if strcmp(parcelType,'Brodmann')
+            roi     = [1:16];
+            regSide = [ones(1,8) ones(1,8)*2];
+            regType = [1:8 1:8];
+        elseif strcmp(parcelType,'BG-striatum')
+            roi     = [1:4];
+            regSide = [1 1 2 2];
+            regType = [1 2 1 2];
+        elseif strcmp(parcelType,'thalamus')
+            roi     = [1,2];
+            regSide = [1 2];
+            regType = [1 1];
+        elseif strcmp(parcelType,'162tessels')
+            roi     = sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+            % choose only clusters where group dist >0
+            regSide = ones(size(roi));
+            regSide(roi>158)=2;
+            regType = roi;
+            regType(regSide==2)=regType(regSide==2)-158;
+        end
+
+        for ss=sessN
+            fprintf('\n\nSession %d\n',ss);
+            V=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss)));
+            for s=sn
+                fprintf('\nSubject: %d\n',s) % output to user
+                for r=1:length(roi)
+                    beta=[];
+                    D=getrow(V,V.region==roi(r) & V.SN==s);
+                    switch betaChoice
+                        case 'multi'
+                            beta = D.betaW{:};
+                        case 'uni'
+                            beta = D.betaUW{:};
+                        case 'raw'
+                            beta = D.betaRAW{:};
+                    end
+                    if isnan(beta)
+                        T.partA_train     = ones(1,6*5/2)*NaN;
+                        T.partA_untrain   = ones(1,6*5/2)*NaN;
+                        T.partA_all       = ones(1,12*11/2)*NaN;
+                        T.partB_train     = ones(1,6*5/2)*NaN;
+                        T.partB_untrain   = ones(1,6*5/2)*NaN;
+                        T.partB_all       = ones(1,12*11/2)*NaN;
+                    else
+                        distA = rsa_squareRDM(rsa.distanceLDC(beta(idxA,:),pVec(idxA),cVec));
+                        distB = rsa_squareRDM(rsa.distanceLDC(beta(idxB,:),pVec(idxB),cVec));
+                        T.partA_train     = rsa_vectorizeRDM(distA(1:6,1:6));
+                        T.partA_untrain   = rsa_vectorizeRDM(distA(7:12,7:12));
+                        T.partA_all       = rsa_vectorizeRDM(distA);
+                        T.partB_train     = rsa_vectorizeRDM(distB(1:6,1:6));
+                        T.partB_untrain   = rsa_vectorizeRDM(distB(7:12,7:12));
+                        T.partB_all       = rsa_vectorizeRDM(distB);
+                    end   
+                    T.sn = s;
+                    T.sessN = ss;
+                    T.roi = roi(r);
+                    T.regType = regType(r); % refer to D
+                    T.regSide = regSide(r);
+                    fprintf('%d.',r);
+                    TT=addstruct(TT,T);
+                end
+            end
+        end
+        save(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaChoice,parcelType)),'-struct','TT');
+    case 'BETA_combine_splitHalf'
+        % combine different split-half beta structures
+        % Brodmann, BG-striatum, thalamus
+        sessN=[1:4];
+        betaType='multi';
+        parcelType = {'Brodmann','BG-striatum','thalamus'};
+        
+        TT=[];
+        for ss=sessN
+            idx = [0 0];
+            for i=1:length(parcelType)
+                T = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s.mat',betaType,parcelType{i})));
+                T = getrow(T,T.sessN==ss);
+                T.regStruct = ones(size(T.sn))*i;
+                T.roi       = T.roi + idx(1);
+                T.regType   = T.regType + idx(2);
+                idx = [(max(T.roi)) (max(T.regType))];
+                
+                TT = addstruct(TT,T);
+            end
+        end
+    save(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_combined',betaType)),'-struct','TT');
     case 'BETA_get_LOC'
         % for localizer  
         sessN = 1;
@@ -1039,14 +1144,14 @@ switch(what)
         save(fullfile(regDir,sprintf('betas_LOC_sess%d.mat',sessN)),'-struct','T'); 
         fprintf('\n');  
     case 'BETA_stats'                                                        % STEP 5.8   :  Calculate stats/distances on activity patterns - train/untrain seq
-        sessN = 4;
-        sn=[4:9,11:28];
+        sessN = [1:4];
+        sn=[4:9,11:31];
         roi = [1:16];
         roiDefine = 'all'; % determine from region file
         betaChoice = 'multi'; % uni, multi or raw
         checkG=0; % test across all regions / subjects 
         simulations=0;
-        type = 'add'; % new or add - if creating from scratch (no subject or adding new ones only)
+        type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
         parcelType = '162tessels'; % or Brodmann
         vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine'});
         
@@ -1097,6 +1202,8 @@ switch(what)
                         Do.dist_all=NaN;
                         Do.eigTrain=ones(1,6)*NaN;
                         Do.eigUntrain=ones(1,6)*NaN;
+                        Do.RDM_train=NaN;
+                        Do.RDM_untrain=NaN;
                     else % run distance / RDM analyses
                         % crossval second moment matrix
                         [G,Sig]     = pcm_estGCrossval(betaW(1:(12*num_run),:),D.run,D.seqNumb);
@@ -3980,7 +4087,9 @@ switch(what)
         end
         fprintf('\n\nAltogether missing %d searchlights\n',count);
     
-    case 'CLUSTER_choose'
+        
+        
+    case 'CLUSTER_choose'               % CLUSTER start
         sessN=1;
         betaChoice='multi';
         vararginoptions(varargin,{'sessN','betaChoice'});
@@ -3989,9 +4098,12 @@ switch(what)
             indx=[];
             T=load(fullfile(betaDir,'group',sprintf('stats_162tessels_%sPW_sess%d',betaChoice,ss)));
             for r=unique(T.region)'
-                [t,p]=ttestDirect(T.dist_train,[T.SN],1,'onesample','subset',T.region==r);
-                if (p<0.01 & t>0) % include into selection
-                    indx=[indx;r];
+                T1 = getrow(T,T.region==r);
+                if ~any(isnan(T1.dist_train)) % make sure all subjects have data there
+                    [t,p]=ttestDirect(T.dist_train,[T.SN],1,'onesample','subset',T.region==r);
+                    if (p<0.1 & t>0) % include into selection
+                        indx=[indx;r];
+                    end
                 end
             end
             if ss==sessN(1)
@@ -4001,7 +4113,371 @@ switch(what)
             end
         end
         varargout={choice}; 
-    case 'CLUSTER_extractROI_search'
+    case 'CLUSTER_interSubj_RDM'        % RDM LEVEL - per tessel
+        % estimate the consistency of RDMs in each tessel
+        % both within and across subjects
+        sn=[4:9,11:31];
+        sessN=[1:4];
+        parcelType='162tessels'; % Brodmann or 162tessels
+        sessType = 'within';
+        betaType='multi'; % multi,uni,RAW
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','betaType'});
+        
+        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaType,parcelType)));
+        % split participants by groups
+        S{1}=sn(mod(sn,2)==1);
+        S{2}=sn(mod(sn,2)==0);
+        for ss=sessN
+            if strcmp(sessType,'within')
+                T = getrow(T,T.sessN==ss);
+            end
+            RR=[];
+            roi=unique(T.roi);
+            
+            if strcmp(parcelType,'Brodmann')
+                regSide = [ones(1,8) ones(1,8)*2];
+                regType = [1:8 1:8];
+            elseif strcmp(parcelType,'162tessels')
+                regSide = ones(size(roi));
+                regSide(roi>158)=2;
+                regType = roi;
+                regType(regSide==2)=regType(regSide==2)-158;
+            end        
+            for g=1:2 % groups 1 and 2
+                for s1=1:size(S{g},2)
+                    for s2=1:size(S{g},2)
+                        for i=1:numel(roi)
+                            D1 = getrow(T,T.sn==S{g}(s1) & T.roi==roi(i));
+                            D2 = getrow(T,T.sn==S{g}(s2) & T.roi==roi(i));
+                            if s1==s2
+                                corrDist = corr(D1.partA_train',D2.partB_train');
+                            else
+                                c1 = corr(D1.partA_train',D2.partB_train');
+                                c2 = corr(D1.partB_train',D2.partA_train');
+                                c3 = corr(D1.partA_train',D2.partA_train');
+                                c4 = corr(D1.partB_train',D2.partB_train');
+                                corrDist = mean([c1 c2 c3 c4]);
+                            end
+                            R.corrDist  = corrDist;
+                            R.roi       = D1.roi;
+                            R.regType   = D1.regType;
+                            R.regSide   = D2.regSide;
+                            R.sn1       = S{g}(s1);
+                            R.sn2       = S{g}(s2);
+                            RR=addstruct(RR,R);
+                        end
+                    end
+                    fprintf('Done group%d: %d/%d\n',g,s1,size(S{g},2));
+                end
+            end
+            save(fullfile(distPscDir,sprintf('consist_interSubjRDM_%s_sess%d',parcelType,ss)),'-struct','RR');
+        end
+    case 'PLOT_interSubj_RDM'
+        sessN=[1:4];
+        parcelType='162tessels';
+        vararginoptions(varargin,{'sessN','parcelType'});
+        
+        TT=[];
+        for ss=sessN
+            T = load(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,ss)));
+            T.sessN = ones(size(T.roi))*ss;
+            TT=addstruct(TT,T);
+        end
+        figure
+        plt.bar(TT.sessN,TT.corrDist,'subset',TT.sn1~=TT.sn2);
+        xlabel('session'); ylabel('inter-subject RDM consistency');
+        hold on;
+        drawline(mean(TT.corrDist(TT.sn1==TT.sn2)),'dir','horz','linestyle','--');
+    case 'PLOT_interSubj_RDM_surface'
+        sessN=[1:4]; 
+        parcelType='162tessels';
+        type = {'within','between'};
+        vararginoptions(varargin,{'sessN','parcelType'});
+        
+        for ss=sessN
+            T = load(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,ss)));
+            for h=1:2;
+                % per hemisphere
+                caretSDir = fullfile(caretDir,'fsaverage_sym',hemName{h});
+                C=caret_load(fullfile(caretSDir,sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+                data=zeros(size(C.data,1),2);
+                for t=1:2 % within / between subjects
+                    roi = unique(T.roi(T.regSide==h));
+                    for r=roi'
+                        T1 = getrow(T,T.roi==r);
+                        % calculate within or between subject consistency
+                        rS(1) = nanmean(T1.corrDist(T1.sn1==T1.sn2));
+                        rS(2) = nanmean(T1.corrDist(T1.sn1~=T1.sn2));
+                        indx = C.index(C.data==r);
+                        % mark in green
+                        data(indx,t)=rS(t);
+                        column_name{t} = fullfile(sprintf('consistRDM_%sSubj_sess%d.nii',type{t},ss));
+                    end
+                end
+                R=caret_struct('metric','data',data,'column_name',column_name);
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.consistRDM_sess%d.metric',hem{h},ss)),R);
+            end
+        end
+   
+    case 'CLUSTER_calcAlpha'            % ALPHA LEVEL
+        % calculate the alpha matrix
+        % estimate the distance between RDMs across tessels
+        sn=[4:9,11:31];
+        sessN=[1:4];
+        hemi=[1,2]; % 1- contra, 2 - ipsi, [1,2] - both
+        parcelType='162tessels'; % Brodmann or 162tessels; or combined
+        sessType = 'across'; % within or across
+        seqType='all'; % all, trained, untrained
+        crossType='all'; % all or splithalf
+        distType='cosine'; % distance type
+        betaType='multi'; % multi,uni,RAW
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','crossType','distType','seqType','betaType'});
+        
+        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaType,parcelType)));
+        % split participants by groups
+        if strcmp(sessType,'within')
+            T = getrow(T,T.sessN==sessN);
+        end
+        if size(hemi,2)==1
+            T = getrow(T,T.regSide==hemi);
+        end
+        
+        roi=unique(T.roi);
+        A_all=zeros(numel(roi)*numel(sessN),numel(roi)*numel(sessN),numel(sn));
+        
+        for s=1:numel(sn)
+            fprintf('Subject %d/%d\n',s,numel(sn));
+            T1 = getrow(T,T.sn==sn(s));
+            regNum = size(T1.roi,1);
+            switch seqType
+                case 'all'
+                    t = [T1.partA_all;T1.partB_all];
+                case 'trained' 
+                    t = [T1.partA_train;T1.partB_train];
+                case 'untrained'
+                    t = [T1.partA_untrain;T1.partB_untrain];
+            end
+            a_all = squareform(pdist(t,distType)); % between all regions / parcels
+           %A_all = rsa_calcdist(t,distType);
+            switch crossType
+                case 'all'
+                    % take the mean of partA-A partB-B (not cross-part)
+                    tmp(:,:,1) = a_all(1:regNum,1:regNum);
+                    tmp(:,:,2) = a_all(regNum+1:end,regNum+1:end);
+                    A = mean(tmp,3);
+                case 'splithalf'
+                    % consider distance of partA-B
+                    tmp(:,:,1) = a_all(1:regNum,regNum+1:end);
+                    tmp(:,:,2) = a_all(regNum+1:end,1:regNum);
+                    A = mean(tmp,3);
+            end
+            % make confidence - 1-distance (within-region)
+            % only really works for splithalf, otherwise 1
+            Conf_all(:,:,s)=1-diag(A);    
+            % set diagonal to 1 (for splithalf)
+            % apply Gaussian similarity (for across region only)
+            % create a matrix of similarity across regions 
+            thres = quantile(rsa_vectorizeRDM(A),0.05);
+            A     = exp(-A.^2 ./ (2*thres^2));
+            A(1:regNum+1:end)=ones(size(A,1),1);
+            A_all(:,:,s) = A;
+        end
+        A = nanmean(A_all,3);
+        Conf=nanmean(Conf_all,3);
+        Roi=T1.roi;
+        RegType=T1.regType;
+        RegSide=T1.regSide;
+        sessN=T1.sessN;
+       % save(fullfile(clusterDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+       switch sessType
+           case 'within'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+           case 'across'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+       end
+    case 'CLUSTER_interSubj_old'
+        parcelType='162tessels';
+        sessN=[1:4];
+        seqType='all'; % all, trained, untrained
+        sn=[1:25];
+        vararginoptions(varargin,{'var','clustN','parcelType','sessN','sessType','seqType'});
+        
+        CC=[];
+        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)));
+        % try MDS plot
+        [Y,l] =rsa_classicalMDS(T.A);
+        figure
+        scatterplot3(Y(:,1),Y(:,2),Y(:,3),'split',T.sessN,'markersize',5,'leg',{'sess1','sess2','sess3','sess4'});
+        % loads as A
+        M=zeros(numel(sn));
+        for ss=sessN
+            idx = find(T.sessN==ss);
+            for s1=1:numel(sn)
+                for s2=s1:numel(sn)
+                    conn1 = rsa_vectorizeRDM(T.A_all(idx,idx,s1));
+                    conn2 = rsa_vectorizeRDM(T.A_all(idx,idx,s2));
+                    C.corr = corr(conn1',conn2');
+                    C.sn1  = s1;
+                    C.sn2  = s2;
+                    C.sessN = ss;
+                    CC=addstruct(CC,C);
+                    M(s2,s1)=corr(conn1',conn2');
+                end
+            end
+        end
+        figure
+        plt.bar(CC.sessN,CC.corr,'subset',CC.sn1~=CC.sn2);
+        xlabel('session'); ylabel('inter-subject Alpha consistency');
+    case 'CLUSTER_interSubj_Alpha'
+        parcelType='162tessels';
+        sessN=[1:4];
+        seqType='all'; % all, trained, untrained
+        distType='cosine';
+        crossType='splithalf';% splithalf or all
+        sessType='across';
+        sn=[1:27];
+        vararginoptions(varargin,{'var','clustN','parcelType','sessN','crossType','seqType'});
+        
+        CC=[];
+        T = load(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)));
+        % loads as A
+        M=zeros(numel(sn));
+        for ss=sessN
+            idx = find(T.sessN==ss);
+            for s1=1:numel(sn)
+                for s2=s1:numel(sn)
+                    conn1 = rsa_vectorizeRDM(T.A_all(idx,idx,s1));
+                    conn2 = rsa_vectorizeRDM(T.A_all(idx,idx,s2));
+                    C.corr = corr(conn1',conn2');
+                    C.sn1  = s1;
+                    C.sn2  = s2;
+                    C.sessN = ss;
+                    CC=addstruct(CC,C);
+                    M(s2,s1)=corr(conn1',conn2');
+                end
+            end
+        end
+        figure
+        plt.bar(CC.sessN,CC.corr,'subset',CC.sn1~=CC.sn2);
+        xlabel('session'); ylabel('inter-subject Alpha consistency');
+    case 'CLUSTER_interSess_Alpha'
+        parcelType='162tessels';
+        sessN=[1:4];
+        seqType='all'; % all, trained, untrained
+        sn=[1:27];
+        distType='cosine';
+        crossType='splithalf';
+        sessType='across';
+        vararginoptions(varargin,{'crossType','distType','parcelType','sessN','sessType','seqType'});
+        
+        CC=[];
+        T = load(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)));        % loads as A
+        for s=1:numel(sn)
+            for s1=1:numel(sessN)
+                idx1 = find(T.sessN==s1);
+                for s2=s1:numel(sessN)
+                    idx2 = find(T.sessN==s2);
+                    conn1 = rsa_vectorizeRDM(T.A_all(idx1,idx1,s));
+                    conn2 = rsa_vectorizeRDM(T.A_all(idx2,idx2,s));
+                    C.corr = corr(conn1',conn2');
+                    C.sn     = s;
+                    C.sess1  = s1;
+                    C.sess2  = s2;
+                    CC=addstruct(CC,C);
+                end
+            end
+        end
+        figure
+        subplot(211)
+        plt.bar(CC.sess1,CC.corr,'subset',CC.sess2==CC.sess1+1);
+        xlabel('session transitions'); title('inter-session Alpha consistency');
+        ylabel('');
+        subplot(212)
+        plt.bar(CC.sess2,CC.corr,'subset',CC.sess1==1 & CC.sess2~=1);
+        ylabel('');
+    case 'PLOT_confidenceAlpha_surface' 
+        % plot the confidence in splithalf dist per tessel
+        parcelType='162tessels';
+        sessN=[1:4];
+        seqType='all'; % all, trained, untrained
+        distType='cosine';
+        crossType='splithalf';
+        sessType='across';
+        vararginoptions(varargin,{'crossType','distType','parcelType','sessN','sessType','seqType'});
+        
+        T = load(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)));        % loads as A
+        for ss=sessN
+            for h=1:2
+                % per hemisphere
+                caretSDir = fullfile(caretDir,'fsaverage_sym',hemName{h});
+                C=caret_load(fullfile(caretSDir,sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+                data=zeros(size(C.data,1),1);
+                T1=getrow(T,T.sessN==ss & T.RegSide==h);
+                roi = unique(T1.RegType(T1.RegSide==h));
+                for r=1:length(roi)
+                    indx = C.index(C.data==roi(r));
+                    data(indx,:)=T1.Conf(r);
+                end
+                column_name{1} = fullfile(sprintf('confidence_alpha_sess%d_%sSeq.nii',ss,seqType));
+                
+                R=caret_struct('metric','data',data,'column_name',column_name);
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.confidenceAlpha_%sSeq_sess%d.metric',hem{h},seqType,ss)),R);
+            end
+        end
+        
+    case 'CLUSTER_make_group'           % CLUSTER LEVEL
+        parcelType  = '162tessels'; % Brodmann or 162tessels; or combined
+        seqType     = 'all'; % all, trained, untrained
+        sessType    = 'within'; % within or across
+        crossType   = 'all'; % all or splithalf
+        distType    = 'cosine'; % distance type
+        sessN       = 4;
+        maxClust    = 10;
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','seqType','distType','crossType','maxClust','seqType'});
+        switch sessType
+            case 'within'
+                T1 = load(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
+            case 'across'
+                T1 = load(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)));
+        end
+        [C L U]=SpectralClustering(T1.A,maxClust,3);
+       % Clust = kmeans(T1.A,maxClust);
+        T1.community = community_louvain(T1.A);
+        T1.cluster   = C;
+        T1.laplace   = L;
+        T1.eigenv    = U;
+        switch sessType
+            case 'within'
+                save(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)),'-struct','T1');
+            case 'across'
+                save(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)),'-struct','T1');
+        end
+    case 'CLUSTER_make_subj' % TO DO
+       % cluster separately for each subject
+        parcelType='162tessels'; % Brodmann or 162tessels; or combined
+        seqType='all'; % all, trained, untrained
+        maxClust=7;
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','maxClust','seqType'});
+        T1 = load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)));
+        
+        for s=1:size(T1.A_all,3);
+            [C L U]=SpectralClustering(T1.A_all(:,:,s),maxClust,3);
+            % Clust = kmeans(T1.A,maxClust);
+            A{s}.A         = T1.A_all(:,:,s);
+            A{s}.community = community_louvain(T1.A);
+            A{s}.cluster   = C;
+            A{s}.laplace   = L;
+            A{s}.eigenv    = U;
+            A{s}.Roi       = T1.Roi;
+            A{s}.RegType   = T1.RegType;
+            A{s}.RegSide   = T1.RegSide;
+            A{s}.sessN     = T1.sessN;
+        end
+        save(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,maxClust)),'A');
+    
+    
+    case 'CLUSTER_extractROI_search'    % old
+        % extract searchlight from ROI
         sn=[4:9,11:25];
         sessN=[1:4];
         parcelType='Brodmann'; % Brodmann or 162tessels
@@ -4044,12 +4520,14 @@ switch(what)
         end
         keyboard;
         save(fullfile(distPscDir,sprintf('cluster_RDM_search_%s',parcelType)),'-struct','TT');
-    case 'CLUSTER_extractROI_dist'
+    case 'CLUSTER_extractROI_dist'      % old
+        % extract searchlight from ROI (non-crossval)
         sn=[4:9,11:28,30];
         sessN=[1:4];
         parcelType='Brodmann'; % Brodmann or 162tessels
         betaChoice='multi';
         sessType = 'within'; % within one session only / across sessions
+        crossType = 'all'; % all the data or splithalf (even / odd)
         vararginoptions(varargin,{'sn','sessN','parcelType'});
         TT=[];
         for ss=sessN
@@ -4062,9 +4540,9 @@ switch(what)
             elseif strcmp(parcelType,'162tessels')
                 roi     = sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
                 regSide = ones(size(roi));
-                regSide(roi>162)=2;
+                regSide(roi>158)=2;
                 regType = roi;
-                regType(regSide==2)=regType(regSide==2)-162;
+                regType(regSide==2)=regType(regSide==2)-158;
             end
             for s=sn
                 fprintf('\nSubject: %d\n',s) % output to user
@@ -4088,124 +4566,12 @@ switch(what)
             end
         end
         if strcmp(sessType,'within');
-            save(fullfile(distPscDir,sprintf('cluster_RDM_dist_%sSess%d_%s',sessType,sessN,parcelType)),'-struct','TT');
+            save(fullfile(clusterDir,sprintf('RDM_dist_%s_%sSess%d_%s',crossType,sessType,sessN,parcelType)),'-struct','TT');
         else
-            save(fullfile(distPscDir,sprintf('cluster_RDM_dist_%sSess%d-%d_%s',sessType,sessN(1),sessN(end),parcelType)),'-struct','TT');
-        end
-    case 'CLUSTER_extractROI_crossvalBetas'
-        % crossvalidated version - separately for even and odd runs
-        sn=[4:9,11:28];
-        sessN=[1:4];
-        parcelType='162tessels'; % Brodmann or 162tessels
-        betaChoice='multi';
-        vararginoptions(varargin,{'sn','sessN','parcelType'});
-        
-        TT=[];
-        nRun  = 8;
-        nCond = 12;
-        pVec  = kron([1:nRun]',ones(nCond,1));
-        idxA = mod(pVec,2)==1; % split even and odd runs
-        idxB = mod(pVec,2)==0;
-        cVec  = kron(ones(nRun/2,1),[1:nCond]');   % for each partition
-        
-        if strcmp(parcelType,'Brodmann')
-            roi     = [1:16];
-            regSide = [ones(1,8) ones(1,8)*2];
-            regType = [1:8 1:8];
-        elseif strcmp(parcelType,'162tessels')
-            roi     = sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
-            % choose only clusters where group dist >0
-            regSide = ones(size(roi));
-            regSide(roi>162)=2;
-            regType = roi;
-            regType(regSide==2)=regType(regSide==2)-162;
+            save(fullfile(clusterDir,sprintf('RDM_dist_%s_%sSess%d-%d_%s',crossType,sessType,sessN(1),sessN(end),parcelType)),'-struct','TT');
         end
 
-        for ss=sessN
-            fprintf('\n\nSession %d\n',ss);
-            V=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss)));
-            for s=sn
-                fprintf('\nSubject: %d\n',s) % output to user
-                for r=1:length(roi)
-                    beta=[];
-                    D=getrow(V,V.region==roi(r) & V.SN==s);
-                    switch betaChoice
-                        case 'multi'
-                            beta = D.betaW{:};
-                        case 'uni'
-                            beta = D.betaUW{:};
-                        case 'raw'
-                            beta = D.betaRAW{:};
-                    end
-                    if isnan(beta)
-                        T.partA_train     = ones(1,6*5/2)*NaN;
-                        T.partA_untrain   = ones(1,6*5/2)*NaN;
-                        T.partA_all       = ones(1,12*11/2)*NaN;
-                        T.partB_train     = ones(1,6*5/2)*NaN;
-                        T.partB_untrain   = ones(1,6*5/2)*NaN;
-                        T.partB_all       = ones(1,12*11/2)*NaN;
-                    else
-                        distA = rsa_squareRDM(rsa.distanceLDC(beta(idxA,:),pVec(idxA),cVec));
-                        distB = rsa_squareRDM(rsa.distanceLDC(beta(idxB,:),pVec(idxB),cVec));
-                        T.partA_train     = rsa_vectorizeRDM(distA(1:6,1:6));
-                        T.partA_untrain   = rsa_vectorizeRDM(distA(7:12,7:12));
-                        T.partA_all       = rsa_vectorizeRDM(distA);
-                        T.partB_train     = rsa_vectorizeRDM(distB(1:6,1:6));
-                        T.partB_untrain   = rsa_vectorizeRDM(distB(7:12,7:12));
-                        T.partB_all       = rsa_vectorizeRDM(distB);
-                    end   
-                    T.sn = s;
-                    T.sessN = ss;
-                    T.roi = roi(r);
-                    T.regType = regType(r);
-                    T.regSide = regSide(r);
-                    fprintf('%d.',r);
-                    TT=addstruct(TT,T);
-                    fprintf('Done %d/%d\n',find(s==sn),numel(sn));
-                end
-            end
-        end
-        save(fullfile(betaDir,'group',sprintf('betas_partition_%s',parcelType)),'-struct','TT');
-    case 'CLUSTER_regress'
-        sn=[4:9,11:28];
-        sessN=[1:4];
-        parcelType='162tessels'; % Brodmann or 162tessels
-        vararginoptions(varargin,{'sn','sessN','parcelType'});
-        
-        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%s',parcelType)));
-        RR=[];
-        roi=unique(T.roi);
-        for s=1:numel(sn)
-            for i=1:numel(roi)*numel(sessN)
-                for j=i:numel(roi)*numel(sessN)
-                    D = getrow(T,T.sn==sn(s));
-                    D1 = getrow(D,i);
-                    D2 = getrow(D,j);
-                    
-                    beta = pinv(D1.partA_train')*D2.partA_train';
-                    res = D2.partB_train'-(D1.partB_train'*beta);
-                    SSR = sum(res.^2);
-                    SST = sum(D2.partB_train.^2);
-                    R2 = 1 - SSR/SST;
-                    R.R2 = R2;
-                    r = corrcoef(D2.partB_train',D1.partB_train'*beta);
-                    R.r = r(1,2);
-                    R.beta = beta;
-                    R.reg1 = i;
-                    R.reg2 = j;
-                    R.sn   = sn(s);
-                    R.s_idx = s;
-                    RR=addstruct(RR,R);
-                    % save struct
-                    % save matrix
-                    M_R2(j,i,s)=R2;
-                    M_r(j,i,s)=R.r;
-                end
-                  fprintf('Done %s\treg: %d/%d\n',subj_name{sn(s)},i,numel(roi)*numel(sessN));
-            end
-        end
-        keyboard;
-    case 'CLUSTER_acrossROI'
+    case 'CLUSTER_acrossROI'        % REMOVE
         sn=[4:9,11:28,30];
         sessN=[1:4];
         parcelType='162tessels'; % Brodmann or 162tessels
@@ -4277,79 +4643,6 @@ switch(what)
         else
             save(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,maxClust,seqType,sessType,sessN(1),sessN(end))),'-struct','M');
         end
-    case 'CLUSTER_color'
-        distType = 'distcorr';
-        parcelType = '162tessels';
-        maxClust = 10;
-        sessType = 'within';
-        sessN=[1:2];
-        seqType='all';
-        vararginoptions(varargin,{'distType','parcelType','maxClust','sessN','sessType','seqType'});
-        
-        if strcmp(sessType,'within');
-            T = load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d',parcelType,distType,maxClust,seqType,sessType,sessN)));
-            
-        else
-            T = load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,maxClust,seqType,sessType,sessN(1),sessN(end))));
-        end
-              
-        % Evaluate similarity graph (W)
-        [Csort,idx]=sort(T.cluster);
-        W = full(T.simGraph);
-        Wsort=W(idx,:);
-        Wsort=Wsort(:,idx);
-        Ncluster = numel(unique(T.cluster));
-        
-        % Laplacian eigenvector
-        Lsort = T.laplace(idx,:); Lsort=Lsort(:,idx);
-        Usort = T.eigenv(idx,:);
-        
-        % Merge similarities according to clusters
-        Wsort(logical(eye(size(Wsort)))) = NaN;
-        for i=1:Ncluster
-            for j=1:Ncluster
-                idxi=Csort==i;
-                idxj=Csort==j;
-                rWsrot(i,j) = nanmean(vec(Wsort(idxi,idxj)));
-                rLsort(i,j) = nanmean(vec(Lsort(idxi,idxj)));
-            end
-            rUsort(i,:) = nanmean(Usort(idxi,:),1);
-        end
-        
-        % inspect sorted diagram
-        figure
-        imagesc(Wsort);
-        hold on;
-        % get borders
-        border = [0; find(diff(Csort))+1; length(Wsort)];
-        for b=2:length(border)
-            drawline(border(b-1),'dir','vert','lim',[border(b-1) border(b)],'color',[1 1 1]);
-            drawline(border(b),'dir','vert','lim',[border(b-1) border(b)],'color',[1 1 1]);
-            drawline(border(b-1),'dir','horz','lim',[border(b-1) border(b)],'color',[1 1 1]);
-            drawline(border(b),'dir','horz','lim',[border(b-1) border(b)],'color',[1 1 1]);
-        end
-        
-        % get dendogram linkage
-        Z = linkage(real(rUsort),'ward','euclidean');
-        Col = colorDendrogram(Z,size(rUsort,1),'colorspace','rgb','order',[1,2,3],'fig',0,'weight',1);
-
-        figure
-        [h,t,per] = dendrogram(Z,'Orientation','right');
-        hold on;
-        xlim=get(gca,'xlim');
-        range=diff(xlim);
-        for i=1:numel(per)
-            plot(xlim(1),i,'o','markersize',8,...
-                'markeredgecolor','k',...
-                'markerfacecolor',Col(per(i),:));
-            hold on;
-        end
-        
-        for i=1:numel(h)
-            set(h(i),'color',[0 0 0],'linewidth',1);
-        end
-        cd(distPscDir);
-        dlmwrite(sprintf('my%dColors.txt',maxClust),Col);
     case 'CLUSTER_extractRDM'
         sessType='within';
         sessN=4;
@@ -4433,176 +4726,107 @@ switch(what)
             title(sprintf('RDM-cluster%d',i));
         end
         
-    case 'CLUSTER_consist_reg'
-          % estimate the consistency of RDMs in each tessel
-        % both within and across subjects
-        sn=[4:9,11:28,30];
-        sessN=[1:4];
-        parcelType='162tessels'; % Brodmann or 162tessels
-        sessType = 'across';
-        vararginoptions(varargin,{'sn','sessN','parcelType','sessType'});
-        
-        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%s',parcelType)));
-        % split participants by groups
-        if strcmp(sessType,'within')
-            T = getrow(T,T.sessN==sessN);
-        end
-        RR=[];
-        roi=unique(T.roi);
-        
-        if strcmp(parcelType,'Brodmann')
-            regSide = [ones(1,8) ones(1,8)*2];
-            regType = [1:8 1:8];
-        elseif strcmp(parcelType,'162tessels')
-            regSide = ones(size(roi));
-            regSide(roi>162)=2;
-            regType = roi;
-            regType(regSide==2)=regType(regSide==2)-162;
-        end      
-        for s=1:numel(sn)
-            T1 = getrow(T,T.sn==sn(s));
-            for i=1:numel(roi)*numel(sessN)
-                for j=i:numel(roi)*numel(sessN)
-                    D1 = getrow(T1,i);
-                    D2 = getrow(T1,j);
-                    if i==j
-                        corrDist = corr(D1.partA_train',D2.partB_train');
-                    else
-                        c1 = corr(D1.partA_train',D2.partB_train');
-                        c2 = corr(D1.partB_train',D2.partA_train');
-                        c3 = corr(D1.partA_train',D2.partA_train');
-                        c4 = corr(D1.partB_train',D2.partB_train');
-                        corrDist = mean([c1 c2 c3 c4]);
-                    end
-                    R.corrDist  = corrDist;
-                    R.roi1      = D1.roi;
-                    R.roi2      = D2.roi;
-                    R.regType1  = D1.regType;
-                    R.regType2  = D2.regType;
-                    R.regSide1  = D1.regSide;
-                    R.regSide2  = D2.regSide;
-                    R.sn        = sn(s);
-                    RR=addstruct(RR,R);
-                    % also form a matrix
-                    M(j,i,s)=R.corrDist;
-                end
-            end
-            fprintf('Done subject %d/%d\n',s,numel(sn));
-        end
-        keyboard;
-        save(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,sessN)),'-struct','RR');
-    case 'CLUSTER_consist_subj'
-        % estimate the consistency of RDMs in each tessel
-        % both within and across subjects
-        sn=[4:9,11:28,30];
-        sessN=[1:4];
-        parcelType='162tessels'; % Brodmann or 162tessels
-        sessType = 'within';
-        vararginoptions(varargin,{'sn','sessN','parcelType','sessType'});
-        
-        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%s',parcelType)));
-        % split participants by groups
-        S{1}=sn(mod(sn,2)==1);
-        S{2}=sn(mod(sn,2)==0);
-        if strcmp(sessType,'within')
-            T = getrow(T,T.sessN==sessN);
-        end
-        RR=[];
-        roi=unique(T.roi);
-        
-        if strcmp(parcelType,'Brodmann')
-            regSide = [ones(1,8) ones(1,8)*2];
-            regType = [1:8 1:8];
-        elseif strcmp(parcelType,'162tessels')
-            regSide = ones(size(roi));
-            regSide(roi>162)=2;
-            regType = roi;
-            regType(regSide==2)=regType(regSide==2)-162;
-        end
-        
-        for g=1:2 % groups 1 and 2
-            for s1=1:size(S{g},2)
-                for s2=1:size(S{g},2)
-                    for i=1:numel(roi)
-                        D1 = getrow(T,T.sn==S{g}(s1) & T.roi==roi(i));
-                        D2 = getrow(T,T.sn==S{g}(s2) & T.roi==roi(i));
-                        if s1==s2
-                            corrDist = corr(D1.partA_train',D2.partB_train');
-                        else
-                            c1 = corr(D1.partA_train',D2.partB_train');
-                            c2 = corr(D1.partB_train',D2.partA_train');
-                            c3 = corr(D1.partA_train',D2.partA_train');
-                            c4 = corr(D1.partB_train',D2.partB_train');
-                            corrDist = mean([c1 c2 c3 c4]);
-                        end
-                        R.corrDist  = corrDist;
-                        R.roi       = D1.roi;
-                        R.regType   = D1.regType;
-                        R.regSide   = D2.regSide;
-                        R.sn1       = S{g}(s1);
-                        R.sn2       = S{g}(s2);
-                        RR=addstruct(RR,R);
-                    end
-                end
-                fprintf('Done group%d: %d/%d\n',g,s1,size(S{g},2));
-            end
-        end
-        save(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,sessN)),'-struct','RR');
-    case 'PLOT_consist'
-        sessN=4; 
-        parcelType='162tessels';
-        type = {'within','between'};
-        vararginoptions(varargin,{'sessN','parcelType'});
-        
-        T = load(fullfile(distPscDir,sprintf('consist_interSubj_%s_sess%d',parcelType,sessN)));
-        for h=1:2;
-            % per hemisphere
-            caretSDir = fullfile(caretDir,'fsaverage_sym',hemName{h});
-            C=caret_load(fullfile(caretSDir,sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
-            data=zeros(size(C.data,1),2);
-            for t=1:2 % within / between subjects
-                roi = unique(T.roi(T.regSide==h));
-                for r=roi'
-                    T1 = getrow(T,T.roi==r);
-                    % calculate within or between subject consistency
-                    rS(1) = nanmean(T1.corrDist(T1.sn1==T1.sn2));
-                    rS(2) = nanmean(T1.corrDist(T1.sn1~=T1.sn2));
-                    indx = C.index(C.data==r);
-                    % mark in green
-                    data(indx,t)=rS(t);
-                    column_name{t} = fullfile(sprintf('consistRDM_%sSubj_sess%d.nii',type{t},sessN));
-                end
-            end
-              R=caret_struct('metric','data',data,'column_name',column_name);
-              caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.consistRDM_sess%d.metric',hem{h},sessN)),R);
-        end
-        
-        
-    case 'CLUSTER_surface'
-        distType='cosine';
-        parcelType='162tessels';
-        sessN=[1:2];
-        clustN=10;
-        sessType='within';
-        seqType='all'; % all, trained, untrained
-        vararginoptions(varargin,{'distType','clustN','parcelType','sessN','sessType'});
-        
-        colMap = dlmread(sprintf('my%dColors.txt',clustN));
+    case 'CLUSTER_color' % assign colors, dendogram
+        parcelType  = '162tessels'; % Brodmann or 162tessels; or combined
+        seqType     = 'all'; % all, trained, untrained
+        sessType    = 'within'; % within or across
+        crossType   = 'all'; % all or splithalf
+        distType    = 'cosine'; % distance type
+        sessN       = 4;
+        maxClust    = 10;
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','seqType','distType','crossType','maxClust','seqType'});
         switch sessType
             case 'within'
-               T=load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d',parcelType,distType,clustN,seqType,sessType,sessN)));
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
             case 'across'
-                T=load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,clustN,seqType,sessType,sessN(1),sessN(end))));
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)));
         end
-        for h=1:2;
+        % Evaluate similarity graph (W)
+        [Csort,idx]=sort(T.cluster);
+        A = full(T.A);
+        Asort=A(idx,:);
+        Asort=Asort(:,idx);
+        Ncluster = numel(unique(T.cluster));
+        
+        % Laplacian eigenvector
+        Lsort = T.laplace(idx,:); Lsort=Lsort(:,idx);
+        Usort = T.eigenv(idx,:);
+        
+        % Merge similarities according to clusters
+        Asort(logical(eye(size(Asort)))) = NaN;
+        for i=1:Ncluster
+            for j=1:Ncluster
+                idxi=Csort==i;
+                idxj=Csort==j;
+                rWsrot(i,j) = nanmean(vec(Asort(idxi,idxj)));
+                rLsort(i,j) = nanmean(vec(Lsort(idxi,idxj)));
+            end
+            rUsort(i,:) = nanmean(Usort(idxi,:),1);
+        end
+        
+        % inspect sorted diagram
+        figure
+        imagesc(Asort);
+        % get dendogram linkage
+        Z = linkage(real(rUsort),'ward','euclidean');
+        Col = colorDendrogram(Z,size(rUsort,1),'colorspace','rgb','order',[1,2,3],'fig',0,'weight',1);
+
+        figure
+        [h,t,per] = dendrogram(Z,'Orientation','right');
+        hold on;
+        xlim=get(gca,'xlim');
+        for i=1:numel(per)
+            plot(xlim(1),i,'o','markersize',8,...
+                'markeredgecolor','k',...
+                'markerfacecolor',Col(per(i),:));
+            hold on;
+        end
+        for i=1:numel(h)
+            set(h(i),'color',[0 0 0],'linewidth',1);
+        end
+        cd(clusterDir);
+         switch sessType
+            case 'within'
+                dlmwrite(sprintf('my%dColors_%sSess-%d_%sSeq_%s.txt',Ncluster,sessType,sessN(1),seqType,crossType),Col);
+            case 'across'
+                dlmwrite(sprintf('my%dColors_%sSess-%d-%d_%sSeq_%s.txt',Ncluster,sessType,sessN(1),sessN(end),seqType,crossType),Col);
+         end       
+    case 'CLUSTER_surface' 
+        % plot group cluster assignment on the surface
+        % across or within session
+        % splithalf or all runs
+        % trained or all seq
+        parcelType  = '162tessels'; % Brodmann or 162tessels; or combined
+        seqType     = 'all'; % all, trained, untrained
+        sessType    = 'within'; % within or across
+        crossType   = 'all'; % all or splithalf
+        distType    = 'cosine'; % distance type
+        sessN       = 4;
+        maxClust    = 10;
+        var='cluster'; % community or cluster
+        vararginoptions(varargin,{'var','sn','sessN','parcelType','sessType','seqType','distType','crossType','maxClust','seqType'});
+        
+        cd(clusterDir);
+        switch sessType
+            case 'within'
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)));
+                clustN = length(unique(T.(var)));
+                colMap = dlmread(sprintf('my%dColors_%sSess-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),seqType,crossType));
+            case 'across'
+                T = load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_%sSess-%d-%d_clustN-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),maxClust,parcelType)));
+                clustN = length(unique(T.(var)));
+                colMap = dlmread(sprintf('my%dColors_%sSess-%d-%d_%sSeq_%s.txt',clustN,sessType,sessN(1),sessN(end),seqType,crossType));
+        end
+
+        for h=1:2
             C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
             % per hemisphere
             RGBdata=zeros(size(C.data,1),3);
             for ss=sessN
                 for k=1:clustN
-                    S=getrow(T,T.regSide==h & T.cluster==k & T.sessN==ss);
+                    S=getrow(T,T.RegSide==h & T.(var)==k & T.sessN==ss);
                     % data from that hemi, tessel, per cluster
-                    indx=C.index(ismember(C.data,S.regType));    % indicate the right tessel
+                    indx=C.index(ismember(C.data,S.RegType));    % indicate the right tessel
                     RGBdata(indx,1)=colMap(k,1);
                     RGBdata(indx,2)=colMap(k,2);
                     RGBdata(indx,3)=colMap(k,3);
@@ -4611,14 +4835,312 @@ switch(what)
                 scale(1:clustN,1)=0;
                 scale(1:clustN,2)=1;
                 
-                name={sprintf('clusters%d_%sDist_%sSeq_%sSess%d',clustN,distType,seqType,sessType,ss)};
+                name={sprintf('clusters-%d_%sSeq_%sSess%d_%s',clustN,seqType,sessType,ss,crossType)};
                 R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
                 
-                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.cluster-%d_%sDist_%sSeq_%sSess%d.RGB_paint',hem{h},clustN,distType,seqType,sessType,ss)),R);
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.clusters-%d_%sSeq_%sSess%d_%s.RGB_paint',hem{h},clustN,seqType,sessType,ss,crossType)),R);
             end
         end
+    case 'CLUSTER_surface_crossval_individ' % TO DO
+        % separately for each individual
+        var='cluster'; % community or cluster
+        parcelType='162tessels';
+        sessN=[1:4];
+        clustN=10;
+        sessType='across';
+        seqType='all'; % all, trained, untrained
+        sn=[1:25];
+        vararginoptions(varargin,{'var','clustN','parcelType','sessN','sessType','seqType'});
         
+        load(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        % loads as A
+        
+        clustN = length(unique(A{1}.(var)));
+        colMap = [155 0 95; 10 41 92; 26 169 166; 152 95 153; 230 57 70;...
+            17 86 95; 193 100 94; 44 98 99; 32 164 243; 249 189 205];
+        colMap = colMap./255;
+        
+        for h=1:2
+            C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+            % per hemisphere
+            RGBdata=zeros(size(C.data,1),3);
+            for ss=sessN
+                for s=sn
+                    for k=1:clustN
+                        T=A{s};
+                        S=getrow(T,T.RegSide==h & T.(var)==k & T.sessN==ss);
+                        % data from that hemi, tessel, per cluster
+                        indx=C.index(ismember(C.data,S.RegType));    % indicate the right tessel
+                        RGBdata(indx,1)=colMap(k,1);
+                        RGBdata(indx,2)=colMap(k,2);
+                        RGBdata(indx,3)=colMap(k,3);
+                        scale=[1;1;1];
+                    end
+                    scale(1:clustN,1)=0;
+                    scale(1:clustN,2)=1;
+                    
+                    name={sprintf('clusters%d_%s_%sSeq_%sSess%d_s%d',clustN,var,seqType,sessType,ss,s)};
+                    R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
+                    
+                    caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.clusters-%d_%s_%sSeq_%sSess%d_s%d.RGB_paint',hem{h},clustN,var,seqType,sessType,ss,s)),R);
+                    fprintf('Done sess-%d subject-%d\n',ss,s);
+                end
+            end
+        end
+    case 'CLUSTER_consist_old' % old - make a community projection instead
+        sessN=[1:4]; 
+        parcelType='162tessels';
+        seqType='all'; % all or trained
+        vararginoptions(varargin,{'sessN','parcelType','seqType'});
+        
+        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)));
+        for ss=sessN
+            for h=1:2
+                % per hemisphere
+                caretSDir = fullfile(caretDir,'fsaverage_sym',hemName{h});
+                C=caret_load(fullfile(caretSDir,sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+                data=zeros(size(C.data,1),1);
+                T1=getrow(T,T.sessN==ss & T.RegSide==h);
+                roi = unique(T1.RegType(T1.RegSide==h));
+                for r=1:length(roi)
+                    indx = C.index(C.data==roi(r));
+                    data(indx,:)=T1.Conf(r);
+                end
+                column_name{1} = fullfile(sprintf('consistCorr_sess%d_%sSeq.nii',ss,seqType));
+                
+                R=caret_struct('metric','data',data,'column_name',column_name);
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.consistCorr_%sSeq_sess%d.metric',hem{h},seqType,ss)),R);
+            end
+        end
+    
+        
+        
+    case 'CLUSTER_sort'
+        var='cluster'; % cluster or community
+        parcelType='162tessels';
+        clustN=9;
+        hemi=[1,2];
+        seqType='all'; % all, trained, untrained
+        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
+        
+        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        
+        T1 = getrow(T,ismember(T.RegSide,hemi));
+        % Evaluate similarity graph (W)
+        [Asort,idx]=sort(T1.(var));
+        W = full(T.A);
+        Wsort=W(idx,:);
+        Wsort=Wsort(:,idx);
+        figure
+        imagesc(Wsort);
+    case 'CLUSTER_sort_subj'
+        var='cluster'; % cluster or community
+        parcelType='162tessels';
+        clustN=9;
+        hemi=[1,2];
+        seqType='all'; % all, trained, untrained
+        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
+        
+        load(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        sn=1:size(A,2);
+        figure
+        for s=sn
+            T=A{s};
+            T1 = getrow(T,ismember(T.RegSide,hemi));
+            % Evaluate similarity graph (W)
+            [Asort,idx]=sort(T1.(var));
+            W = full(T.A);
+            Wsort=W(idx,:);
+            Wsort=Wsort(:,idx);
+            subplot(5,5,s);
+            imagesc(Wsort);
+        end
+    case 'CLUSTER_hierarchy'
+        % calculates similarity within / across clusters for group
+        var='cluster'; % Clust or Community
+        parcelType='162tessels';
+        sessN=[1:4];
+        clustN=9;
+        hemi=1;
+        seqType='all'; % all, trained, untrained
+        vararginoptions(varargin,{'var','clustN','parcelType','sesN','sessType','seqType','hemi'});
+        
+        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        
+        AA=[];
+        for ss=sessN
+            T1 = getrow(T,T.sessN==ss&ismember(T.RegSide,hemi));
+            indx = find(T.sessN==ss&ismember(T.RegSide,hemi));
+            T1.A = T.A(indx,indx);
+            T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
+            clust = unique(T1.(var));
+            M{ss} = zeros(length(clust));
+            for c1=1:length(clust)
+                idx1=find(T1.(var)==clust(c1)); % index for all tessels in that cluster
+                if size(idx1,1)>1
+                    for c2=c1:length(clust)
+                        idx2=find(T1.(var)==clust(c2)); % all other tessels
+                        dist11 = T1.A(idx1,idx1);
+                        dist22 = T1.A(idx2,idx2);
+                        dist12 = T1.A(idx1,idx2);
+                        M{ss}(c1,c1) = nanmean(dist11(:));
+                        M{ss}(c2,c2) = nanmean(dist22(:));
+                        M{ss}(c1,c2) = nanmean(dist12(:));
+                        M{ss}(c2,c1) = nanmean(dist12(:));
+                    end
+                end
+            end
+        end
+    case 'CLUSTER_hierarchy_acrossSess'
+          % calculates similarity within / across clusters for group
+        var='cluster'; % cluster or community
+        parcelType='162tessels';
+        clustN=9;
+        hemi=[1,2];
+        seqType='all'; % all, trained, untrained
+        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
+        
+        T=load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        
+        AA=[];
+        T1 = getrow(T,ismember(T.RegSide,hemi));
+        indx = find(ismember(T.RegSide,hemi));
+        T1.A = T.A(indx,indx);
+        T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
+        for c=unique(T1.(var))'
+            idxc=find(T1.(var)==c); % index for all tessels in that cluster
+            if size(idxc,1)>1
+                idxnc=find(T1.(var)~=c); % all other tessels
+                distClust = T1.A(idxc,idxc);
+                distOut   = T1.A(idxc,idxnc);
+                t1=rsa_vectorizeRDM(distClust);
+                t2=distOut(:);
+                A.similarity(1,:)    = nanmean(t1);
+                A.similarity(2,:)    = nanmean(t2);
+                A.withinOut          = [1;2];
+                A.numTesselIn        = repmat(length(idxc),2,1);
+                A.clustN             = repmat(c,2,1);
+                AA=addstruct(AA,A);
+            end
+            clear idxc idxnc distClust distOut;
+        end
+        figure
+        plt.bar(AA.clustN,AA.similarity,'split',AA.withinOut);
+    case 'CLUSTER_hierarchy_perSubj'
+           % calculates similarity within / across clusters for group
+        var='cluster'; % cluster or community
+        parcelType='162tessels';
+        clustN=9;
+        hemi=[1,2];
+        seqType='all'; % all, trained, untrained
+        vararginoptions(varargin,{'var','clustN','parcelType','sessType','seqType','hemi'});
+        
+        load(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,clustN)));
+        
+        RR=[];
+        sn=1:size(A,2);
+        for s=sn
+        T = A{s};
+        T1 = getrow(T,ismember(T.RegSide,hemi));
+        indx = find(ismember(T.RegSide,hemi));
+        T1.A = T.A(indx,indx);
+        T1.A(1:size(T1.A,1)+1:end) = ones(size(T1.A,1),1)*NaN;
+        for c=unique(T1.(var))'
+            idxc=find(T1.(var)==c); % index for all tessels in that cluster
+            if size(idxc,1)>1
+                idxnc=find(T1.(var)~=c); % all other tessels
+                distClust = T1.A(idxc,idxc);
+                distOut   = T1.A(idxc,idxnc);
+                t1=rsa_vectorizeRDM(distClust);
+                t2=distOut(:);
+                R.similarity(1,:)    = nanmean(t1);
+                R.similarity(2,:)    = nanmean(t2);
+                R.withinOut          = [1;2];
+                R.numTesselIn        = repmat(length(idxc),2,1);
+                R.clustN             = repmat(c,2,1);
+                R.sn                 = repmat(s,2,1);
+                RR=addstruct(RR,R);
+            end
+            clear idxc idxnc distClust distOut;
+        end
+        end
+        figure
+        plt.bar(RR.clustN,RR.similarity,'split',RR.withinOut);
 
+    case 'job2'
+        sml1_imana_dist_tmp('BETA_get','sn',[29],'sessN',[2:4],'parcelType','Brodmann');
+        sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','thalamus');
+        sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','BG-striatum');
+    case 'job'
+        % first preprocess s29,s31
+%         sml1_imana_prep('GLM_sess_all','sn',29,'sessN',4);
+%         sml1_imana_prep('GLM_sess_all','sn',31,'sessN',4);
+%         sml1_imana_prep('MASK_combine','sn',[29,31]);
+%         sml1_imana_prep('ROI_define','sn',[29,31]);
+%         fprintf('Done preprocessing s29, s31\n');
+    %    sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','162tessels');
+    %    sml1_imana_dist_tmp('BETA_get','sn',[29,31],'sessN',[1:4],'parcelType','Brodmann');
+    %    sml1_imana_dist_tmp('BETA_combineGroup','sn',[29,31],'type','add','sessN',[1:4],'parcelType','162tessels');
+    %    sml1_imana_dist_tmp('BETA_stats');
+    %    sml1_imana_dist_tmp('BETA_splitHalf');
+    %    fprintf('Done betas\n');
+    
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','trained','sessType','within','sessN',4,'crossType','all');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','trained','sessType','within','sessN',4,'crossType','splithalf');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','trained','sessType','across','sessN',[1:4],'crossType','all');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','all','sessType','within','sessN',4,'crossType','all');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','all','sessType','within','sessN',4,'crossType','splithalf');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','all','sessType','across','sessN',[1:4],'crossType','all');
+        sml1_imana_dist_tmp('CLUSTER_calcAlpha','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf');
+        fprintf('Done calculating alpha\n');
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done clustering trained seq\n');
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_make_group','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done clustering all seq\n');
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done colorChoice trained seq\n');
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_color','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done colorChoice all seq\n');
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','trained','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done surface trained seq\n');
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','within','sessN',4,'crossType','all','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','within','sessN',4,'crossType','splithalf','maxClust',6);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','across','sessN',[1:4],'crossType','all','maxClust',15);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',10);
+        sml1_imana_dist_tmp('CLUSTER_surface','seqType','all','sessType','across','sessN',[1:4],'crossType','splithalf','maxClust',15);
+        fprintf('Done surface all seq\n');
+        sml1_imana_dist_tmp('PLOT_confidenceAlpha_surface');
+        sml1_imana_dist_tmp('PLOT_confidenceAlpha_surface','seqType','trained');
+        fprintf('Done plotting confidence on the surface\n');
+        
+        
     otherwise
         disp('there is no such case.')
 end;    % switch(what)
@@ -4666,7 +5188,7 @@ function M = pcm_defineSequenceModels(Seq,sn)
         Seq=SeqNew;
     end
     
-    M{5}(:,:)=eye(5); % first finger
+    M{5}(:,:)=zeros(5); % first finger
     for u = 1:size(Seq,1)    % 12 seq
         firstfing = Seq(:,1);
         M{5}(u,firstfing(u)) = 1;
@@ -4789,7 +5311,7 @@ function M = pcm_defineSequenceModels_new(Seq,sn)
         Seq=SeqNew;
     end
     
-    M{4}(:,:)=eye(5); % first finger
+    M{4}(:,:)=zeros(5); % first finger
     for u = 1:size(Seq,1)    % 12 seq
         firstfing = Seq(:,1);
         M{4}(u,firstfing(u)) = 1;
