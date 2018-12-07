@@ -2965,7 +2965,7 @@ switch(what)
         vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi'})
         tic;
         for ss = sessN
-            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            B=load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
             for h=hemi
                 for r = reg
                     for p=1:length(sn)
@@ -3232,7 +3232,6 @@ switch(what)
                         T.hemi = ones(size(T.SN))*h;
                         T.seqType = ones(size(T.SN))*st;
                         T.sessN = ones(size(T.SN))*ss;
-                        T=rmfield(T,{'reg','thetaCr'});
                         AllReg=addstruct(AllReg,T);
                         
                         % calculations - posterior probability, knockIN/OUT
@@ -3243,7 +3242,6 @@ switch(what)
                         K.sessN = ones(length(K.indx),1)*ss;
                         
                         KK=addstruct(KK,K);
-                        fprintf('Done seqType %d/%d - reg %d/%d - hemi %d/%d - sess %d/%d.\n',st,2,r,max(reg),h,2,ss,max(sessN));
                     end
                 end
             end
@@ -5783,10 +5781,10 @@ function T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm)
 
     [T,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm',algorithm);
     fprintf('Group fit with %s algorithm done.\n',algorithm);
-  %  [T1,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','minimize');
-  %  fprintf('Group fit with minimize algorithm done.\n');
-  %  [T,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','NR');
-  %  fprintf('Group fit with NR algorithm done.\n');
+    %[T1,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','minimize');
+    %fprintf('Group fit with minimize algorithm done.\n');
+    %[T2,theta_hat2,G_pred2,theta02] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','NR');
+    %fprintf('Group fit with NR algorithm done.\n');
     
   %  [T3,theta_hat3,G_pred3,theta03] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','NR','theta0',theta_hat);
   %  [T4,theta_hat4,G_pred4,theta04] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm','minimize','theta0',theta_hat2);
@@ -5846,10 +5844,6 @@ function M = pcm_defineSequenceModels_seqType(Seq,Chunks,sn,seqType)
             end
         end  
     end
-    tmp=M{3};
-    % remove columns with 0s only
-    tmp(:,~any(tmp,1))=[];
-    M{3}=tmp;
     %----------------------------------------
     % Model 4: Chunks
     ChunkSet = Chunks([((seqType-1)*6)+1:((seqType-1)*6)+6],:);
@@ -5861,14 +5855,14 @@ function M = pcm_defineSequenceModels_seqType(Seq,Chunks,sn,seqType)
         idxChunk=ChunkSet(i,:);
         A(i,idxChunk)=1;
     end
-    M{3} = A;
+    M{4} = A;
     % --------------------------------------
     % Model5: Model for each specific sequence
     A=zeros(6);
     for i=1:6
         A(i,i)=1;
     end;
-    M{4}(:,1:6)    = A;       % Trained sequence patterns
+    M{5}(:,1:6)    = A;       % Trained sequence patterns
 end
 function K = pcm_calc(likelihood,compI)
 % calculates posterior probability, knockIN/OUT factors
