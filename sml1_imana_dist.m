@@ -4671,48 +4671,64 @@ switch(what)
         distType='cosine';
         clustN = 10;
         parcelType='162tessels';
-        seqType='all';
-        sn=[4:9,11:28,30];
-        vararginoptions(varargin,{'sessType','sessN','distType','clustN'});
+        seqType='trained';
+        sn=[4:9,11:31];
+        crossType='all'; % all or splithalf
+        betaType='multi';
+        vararginoptions(varargin,{'sessType','sessN','distType','clustN','crossType','betaType'});
         
          switch sessType
             case 'within'
-                R=load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d',parcelType,distType,clustN,seqType,sessType,sessN)));
-                T=load(fullfile(distPscDir,sprintf('cluster_RDM_dist_%sSess%d_%s',sessType,sessN,parcelType)));
+                R=load(fullfile(clusterDir,sprintf('cluster_%sSeq_%sDist_%s_withinSess-%d_clustN-%d_%s',seqType,distType,crossType,sessN,clustN,parcelType)));
              case 'across'
-                R=load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,clustN,seqType,sessType,sessN(1),sessN(end))));
-                T=load(fullfile(distPscDir,sprintf('cluster_RDM_dist_%sSess%d-%d_%s',sessType,sessN(1),sessN(end),parcelType)));
+            %    R=load(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,clustN,seqType,sessType,sessN(1),sessN(end))));
+            %    T=load(fullfile(distPscDir,sprintf('cluster_RDM_dist_%sSess%d-%d_%s',sessType,sessN(1),sessN(end),parcelType)));
          end
          DD=[];
          for ss=sessN
-             % get group betas
+             % get betas and rdms
              B = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss)));
+             S = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaType,ss)));
              for s=sn
                  for c=1:clustN % extract data for each cluster
                      C = getrow(R,R.cluster==c);
-                     T1 = getrow(T,ismember(T.roi,C.roi) & T.sn==s);
-                     B1 = getrow(B,ismember(B.region,C.roi) & B.SN==s);
-                     % concatenate betas into one region
-                     beta=[];
-                     for i=1:length(unique(C.roi))
-                         if sum(sum(isnan(B1.betaW{i})))==0
-                            beta = [beta B1.betaW{i}];
+                     % determine if regions span both hemispheres
+                     hemiIdx = unique(B.regSide(ismember(B.region,C.Roi)));
+                     for h=hemiIdx'
+                         B1 = getrow(B,ismember(B.region,C.Roi) & B.SN==s & B.regSide==h);
+                         S1 = getrow(S,ismember(S.region,C.Roi) & S.SN==s & S.regSide==h);
+                         % concatenate betas into one region
+                         beta=[];
+                         switch seqType
+                             case 'trained'
+                                 D.rdm=nanmean(S1.RDM_train);
+                             case 'untrained'
+                                 D.rdm=nanmean(S1.RDM_untrain);
+                             case 'all'
+                                 D.rdm=nanmean(S1.RDM);
                          end
+                         for i=1:length(unique(C.roi))
+                             if sum(sum(isnan(B1.betaW{i})))==0
+                                 beta = [beta B1.betaW{i}];
+                             end
+                         end
+                         D.beta = {beta};
+                         D.cluster = c;
+                         D.sn = s;
+                         D.hemi = h;
+                         DD=addstruct(DD,D);
                      end
-                     D.beta = {beta};
-                     D.dist = nanmean(T1.RDM_all,1);
-                     D.cluster = c;
-                     D.sn = s;
-                     DD=addstruct(DD,D);
                  end
                  fprintf('Done subject %d/%d\n',find(s==sn),length(sn));
              end
          end
+         
+         keyboard;
          switch sessType
              case 'within'
-                save(fullfile(distPscDir,sprintf('clusterData_%sDist-%dcluster_%sSess%d',distType,clustN,sessType,sessN)),'-struct','DD');
+                save(fullfile(clusterDir,sprintf('clusterData_%sDist-%dcluster_%sSess%d',distType,clustN,sessType,sessN)),'-struct','DD');
              case 'between'
-                 save(fullfile(distPscDir,sprintf('clusterData_%sDist-%dcluster_%sSess_%d-%d',distType,clustN,sessType,sessN(1),sessN(end))),'-struct','DD');
+                 save(fullfile(clusterDir,sprintf('clusterData_%sDist-%dcluster_%sSess_%d-%d',distType,clustN,sessType,sessN(1),sessN(end))),'-struct','DD');
          end
     case 'CLUSTER_plotRDM'
         sessType='within';
