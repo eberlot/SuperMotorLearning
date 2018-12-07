@@ -3205,13 +3205,6 @@ switch(what)
                                     beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
                             end
                             
-                            switch(seqType)
-                                case 'trained'
-                                    st=1;
-                                case 'untrained'
-                                    st=2;
-                            end
-                            
                             partVec{p} = D.run(D.seqType==st);  % runs/partitions
                             
                             m = pcm_defineSequenceModels_seqType(Seq,SeqChunks,p,st);
