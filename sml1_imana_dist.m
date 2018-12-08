@@ -4317,6 +4317,82 @@ switch(what)
            case 'across'
                 save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
        end
+    case 'CLUSTER_KLdivergence'
+        % calculate the alpha matrix
+        % using KL divergence
+        sn=[4:9,11:31];
+        sessN=4;
+        hemi=[1,2]; % 1- contra, 2 - ipsi, [1,2] - both
+        parcelType='162tessels'; % Brodmann or 162tessels; or combined
+        sessType = 'within'; % within or across
+        seqType='all'; % all, trained, untrained
+        crossType='all'; % all or splithalf
+        distType='cosine'; % distance type
+        betaType='multi'; % multi,uni,RAW
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','crossType','distType','seqType','betaType'});
+        
+        T = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaType,parcelType)));
+        % split participants by groups
+        if strcmp(sessType,'within')
+            T = getrow(T,T.sessN==sessN);
+        end
+        if size(hemi,2)==1
+            T = getrow(T,T.regSide==hemi);
+        end
+        
+        roi=unique(T.roi);
+        A_all=zeros(numel(roi)*numel(sessN),numel(roi)*numel(sessN),numel(sn));
+        
+        for s=1:numel(sn)
+            fprintf('Subject %d/%d\n',s,numel(sn));
+            T1 = getrow(T,T.sn==sn(s));
+            regNum = size(T1.roi,1);
+            switch seqType
+                case 'all'
+                    t = [T1.partA_all;T1.partB_all];
+                case 'trained'
+                    t = [T1.partA_train;T1.partB_train];
+                case 'untrained'
+                    t = [T1.partA_untrain;T1.partB_untrain];
+            end
+            a_all = squareform(pdist(t,distType)); % between all regions / parcels
+            %A_all = rsa_calcdist(t,distType);
+            switch crossType
+                case 'all'
+                    % take the mean of partA-A partB-B (not cross-part)
+                    tmp(:,:,1) = a_all(1:regNum,1:regNum);
+                    tmp(:,:,2) = a_all(regNum+1:end,regNum+1:end);
+                    A = mean(tmp,3);
+                case 'splithalf'
+                    % consider distance of partA-B
+                    tmp(:,:,1) = a_all(1:regNum,regNum+1:end);
+                    tmp(:,:,2) = a_all(regNum+1:end,1:regNum);
+                    A = mean(tmp,3);
+            end
+            % make confidence - 1-distance (within-region)
+            % only really works for splithalf, otherwise 1
+            Conf_all(:,:,s)=1-diag(A);
+            % set diagonal to 1 (for splithalf)
+            % apply Gaussian similarity (for across region only)
+            % create a matrix of similarity across regions
+            thres = quantile(rsa_vectorizeRDM(A),0.05);
+            A     = exp(-A.^2 ./ (2*thres^2));
+            A(1:regNum+1:end)=ones(size(A,1),1);
+            A_all(:,:,s) = A;
+        end
+        A = nanmean(A_all,3);
+        Conf=nanmean(Conf_all,3);
+        Roi=T1.roi;
+        RegType=T1.regType;
+        RegSide=T1.regSide;
+        sessN=T1.sessN;
+        % save(fullfile(clusterDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+        switch sessType
+            case 'within'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+            case 'across'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+        end
     case 'CLUSTER_interSubj_old'
         parcelType='162tessels';
         sessN=[1:4];

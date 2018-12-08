@@ -4317,6 +4317,46 @@ switch(what)
            case 'across'
                 save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
        end
+    case 'CLUSTER_KLdivergence'
+        % calculate the alpha matrix
+        % using KL divergence
+        sn=[4:9,11:31];
+        sessN=4;
+        hemi=[1,2]; % 1- contra, 2 - ipsi, [1,2] - both
+        parcelType='162tessels'; % Brodmann or 162tessels; or combined
+        sessType = 'within'; % within or across
+        seqType='all'; % all, trained, untrained
+        crossType='all'; % all or splithalf
+        distType='cosine'; % distance type
+        betaType='multi'; % multi,uni,RAW
+        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','crossType','distType','seqType','betaType'});
+        
+        %T = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaType,parcelType)));
+        T = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaType,sessN)));
+        
+        roi=unique(T.roi);
+        A_all=zeros(numel(roi)*numel(sessN),numel(roi)*numel(sessN),numel(sn));
+        
+        for s=1:numel(sn)
+            fprintf('Subject %d/%d\n',s,numel(sn));
+            T1 = getrow(T,T.sn==sn(s));
+            regNum = size(T1.roi,1);
+            switch seqType
+                case 'all'
+                    t = [T1.partA_all;T1.partB_all];
+                case 'trained'
+                    t = [T1.partA_train;T1.partB_train];
+                case 'untrained'
+                    t = [T1.partA_untrain;T1.partB_untrain];
+            end
+            
+        end
+        switch sessType
+            case 'within'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d_%s',seqType,distType,crossType,sessType,sessN(1),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+            case 'across'
+                save(fullfile(clusterDir,sprintf('alpha_%sSeq_%sDist_%s_%sSess-%d-%d_%s',seqType,distType,crossType,sessType,sessN(1),sessN(end),parcelType)),'A','A_all','Conf','Conf_all','Roi','RegSide','RegType','sessN');
+        end
     case 'CLUSTER_interSubj_old'
         parcelType='162tessels';
         sessN=[1:4];
@@ -4697,16 +4737,15 @@ switch(what)
                      for h=hemiIdx'
                          B1 = getrow(B,ismember(B.region,C.Roi) & B.SN==s & B.regSide==h);
                          S1 = getrow(S,ismember(S.region,C.Roi) & S.SN==s & S.regSide==h);
-                         keyboard;
                          % concatenate betas into one region
                          beta=[];
                          switch seqType
                              case 'trained'
-                                 rdm=nanmean(S1.RDM_train);
+                                 D.rdm=nanmean(S1.RDM_train);
                              case 'untrained'
-                                 rdm=nanmean(S1.RDM_untrain);
+                                 D.rdm=nanmean(S1.RDM_untrain);
                              case 'all'
-                                 rdm=nanmean(S1.RDM);
+                                 D.rdm=nanmean(S1.RDM);
                          end
                          for i=1:length(unique(C.roi))
                              if sum(sum(isnan(B1.betaW{i})))==0
@@ -4714,7 +4753,6 @@ switch(what)
                              end
                          end
                          D.beta = {beta};
-                         D.dist = nanmean(T1.RDM_all,1);
                          D.cluster = c;
                          D.sn = s;
                          D.hemi = h;
@@ -4724,6 +4762,8 @@ switch(what)
                  fprintf('Done subject %d/%d\n',find(s==sn),length(sn));
              end
          end
+         
+         keyboard;
          switch sessType
              case 'within'
                 save(fullfile(clusterDir,sprintf('clusterData_%sDist-%dcluster_%sSess%d',distType,clustN,sessType,sessN)),'-struct','DD');

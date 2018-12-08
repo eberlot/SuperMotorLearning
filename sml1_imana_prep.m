@@ -1,8 +1,8 @@
 function varargout=sml1_imana_prep(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 behavDir        =[baseDir '/behavioral_data/data'];            
 imagingDir      =[baseDir '/imaging_data'];              
 imagingDirRaw   =[baseDir '/imaging_data_raw'];           
@@ -2568,7 +2568,45 @@ loc_AC     = {[-112 -165 -176],...
             end
             
         end
-        
+    case 'ROI_extract_coords'
+     % extracts coordinate positions (centroids) of regions of interest
+     % useful for plotting positions of different ROIs (connectivity
+     % analysis)
+     sn = [4:9,11:31];
+     parcelType='Brodmann';
+     vararginoptions(varargin,{'sn','parcelType'});
+     
+     CC=[];
+     for s=sn
+         load(fullfile(regDir,sprintf('%s_%s_regions',subj_name{s},parcelType)));
+         for i=1:size(R,2)
+             if strcmp(parcelType,'Brodmann');
+                C.flatCentr = mean(R{i}.flatcoord,1);
+             end
+             C.volCentr  = mean(R{i}.data,1);
+             C.roi       = i;
+             C.hemi      = (i>size(R,2)/2)+1;
+             C.regType   = i-((C.hemi-1)*size(R,2)/2);
+             C.sn        = s;
+             CC = addstruct(CC,C);
+         end
+         fprintf('Done extracting centroids - %s\n',subj_name{s});
+     end
+     if strcmp(parcelType,'Brodmann')
+         CC.flatCentr(:,3)=[];
+         G.flatCentr(:,1) = nanmean(pivottable(CC.sn,CC.roi,CC.flatCentr(:,1),'nanmean'),1)';
+         G.flatCentr(:,2) = nanmean(pivottable(CC.sn,CC.roi,CC.flatCentr(:,2),'nanmean'),1)';
+     end
+     G.volCentr(:,1)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,1),'nanmean'),1)';
+     G.volCentr(:,2)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,2),'nanmean'),1)';
+     G.volCentr(:,2)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,3),'nanmean'),1)';
+     G.roi = [1:size(R,2)]';
+     G.hemi = (G.roi>size(R,2)/2)+1;
+     G.regType = G.roi-((G.hemi-1)*size(R,2)/2);
+
+     save(fullfile(regDir,sprintf('region_%s_centroids_individSubj',parcelType)),'-struct','CC');
+     save(fullfile(regDir,sprintf('region_%s_centroids_group',parcelType)),'-struct','G');
+     
     case 'ROI_timeseries'                                                   % STEP 5.2   :  Extract onsets and events/trials - hrf
         % to check the model quality of the glm
         glm=2;
