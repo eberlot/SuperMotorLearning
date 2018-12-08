@@ -3167,82 +3167,83 @@ switch(what)
         runEffect  = 'fixed';
         beta_choice = 'mw';
         algorithm='NR'; % minimize or NR
-        seqType='trained';  % trained or untrained
         parcelType='162tessels'; % Brodmann or 162tessels
-        reg = [1,2,16,20,43,44,45,46,47,48,49,50,52,103,104,105]; % for tessels, 1:8 for Brodmann
-        regType='all';
+        regSelect='all'; % all or subset
         hemi=[1:2];
         sn=[4:9,11:31]; % change
         sessN=[1:4];
         fingType='Count'; % count or NatStats
         
-        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','seqType','parcelType','hemi','regType','fingType'})
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','seqType','parcelType','hemi','regSelect','fingType'})
         tic;
+        if strcmp(parcelType,'162tessels')
+            reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+        end
+        
         AllReg=[];
         K=[];
         KK=[];
         for ss = sessN
             B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
-            if strcmp(regType,'all')
-                reg=unique(B.regType)';
+            if strcmp(regSelect,'all')
+                reg=unique(B.region)';
+                regSide=(reg>size(reg,2)/2)+1;
+                regType=reg-((regSide-1)*size(reg,2)/2);
+            else
+                regType=B.regType(reg)';
+                if strcmp(parcelType,'162tessels')
+                    regSide=ones(size(regType));
+                    regSide(reg>158)=2;
+                end
             end
             
-            for h = hemi
-                for r = reg
-                    for st=1:2
-                        for p=1:length(sn)
-                            
-                            glmDirSubj=fullfile(glmSessDir{ss},subj_name{sn(p)});
-                            
-                            D=load(fullfile(glmDirSubj,'SPM_info.mat'));
-                            
-                            switch (beta_choice)
-                                case 'uw'
-                                    beta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
-                                case 'mw'
-                                    beta = B.betaW{(B.SN==sn(p) & B.regType==r & B.regSide==h)}';
-                                case 'raw'
-                                    beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
-                            end
-                            
-                            partVec{p} = D.run(D.seqType==st);  % runs/partitions
-                            
-                            m = pcm_defineSequenceModels_seqType(Seq,SeqChunks,p,st);
-                            [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component','name','SeqTypeFeatures');
-                            [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
-                            
-                            condVec{p} = repmat(Z,max(D.run),1);
-                            indx = zeros(size(D.seqType));
-                            indx(D.seqType==st)=1;
-                            
-                            Data{p} = beta(:,indx==1)';  % Data is N x P (cond x voxels) - no intercept
-                            
-                        end;
-                        
-                        % fit models
-                        T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
-                        T.roi = ones(size(T.SN))*r;
-                        T.hemi = ones(size(T.SN))*h;
-                        T.seqType = ones(size(T.SN))*st;
-                        T.sessN = ones(size(T.SN))*ss;
-                        T=rmfield(T,{'reg','thetaCr'});
-                        AllReg=addstruct(AllReg,T);
-                        
-                        % calculations - posterior probability, knockIN/OUT
-                        K = pcm_calc(T.cross_likelihood,Comb);
-                        K.roi = ones(length(K.indx),1)*r;
-                        K.hemi = ones(length(K.indx),1)*h;
-                        K.seqType = ones(length(K.indx),1)*st;
-                        K.sessN = ones(length(K.indx),1)*ss;
-                        
-                        KK=addstruct(KK,K);
-                        fprintf('Done seqType %d/%d - reg %d/%d - hemi %d/%d - sess %d/%d.\n',st,2,r,max(reg),h,2,ss,max(sessN));
-                    end
+            for r = 1:length(reg)
+                for st=1:2
+                    for p=1:length(sn)  
+                        glmDirSubj=fullfile(glmSessDir{ss},subj_name{sn(p)});     
+                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));                     
+                        switch (beta_choice)
+                            case 'uw'
+                                beta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
+                            case 'mw'
+                                beta = B.betaW{(B.SN==sn(p) & B.region==reg(r))}';
+                            case 'raw'
+                                beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
+                        end                  
+                        partVec{p} = D.run(D.seqType==st);  % runs/partitions        
+                        m = pcm_defineSequenceModels_seqType(Seq,SeqChunks,p,st);
+                        [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component','name','SeqTypeFeatures');
+                        [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);               
+                        condVec{p} = repmat(Z,max(D.run),1);
+                        indx = zeros(size(D.seqType));
+                        indx(D.seqType==st)=1; 
+                        Data{p} = beta(:,indx==1)';  % Data is N x P (cond x voxels) - no intercept                        
+                    end;
+                    
+                    % fit models
+                    T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
+                    T.roi = ones(size(T.SN))*reg(r);
+                    T.regType = ones(size(T.SN))*regType(r);
+                    T.regSide = ones(size(T.SN))*regSide(r);
+                    T.seqType = ones(size(T.SN))*st;
+                    T.sessN = ones(size(T.SN))*ss;
+                    T=rmfield(T,{'reg','thetaCr'});
+                    AllReg=addstruct(AllReg,T);
+                    
+                    % calculations - posterior probability, knockIN/OUT
+                    K = pcm_calc(T.cross_likelihood,Comb);
+                    K.roi = ones(length(K.indx),1)*reg(r);
+                    K.regType = ones(length(K.indx),1)*regType(r);
+                    K.regSide = ones(length(K.indx),1)*regSide(r);
+                    K.seqType = ones(length(K.indx),1)*st;
+                    K.sessN = ones(length(K.indx),1)*ss;
+                    
+                    KK=addstruct(KK,K);
+                    fprintf('Done seqType %d/%d - reg %d/%d - sess %d/%d.\n',st,2,r,length(reg),2,ss,max(sessN));
                 end
             end
         end
         
-        keyboard;
         % save variables;
         dircheck(fullfile(pcmDir));
         save(fullfile(pcmDir,sprintf('ModelFamilyComb_seqType_%s.mat',parcelType)),'Comb');
@@ -4109,8 +4110,6 @@ switch(what)
         end
         fprintf('\n\nAltogether missing %d searchlights\n',count);
     
-        
-        
     case 'CLUSTER_choose'               % CLUSTER start
         sessN=1;
         betaChoice='multi';
@@ -4666,6 +4665,8 @@ switch(what)
             save(fullfile(distPscDir,sprintf('clusterResults_%s_%sDist_%dclusters_%sSeq_%sSess%d-%d',parcelType,distType,maxClust,seqType,sessType,sessN(1),sessN(end))),'-struct','M');
         end
     case 'CLUSTER_extractRDM'
+        % extract RDMs and betas from each cluster (per subject /
+        % hemisphere)
         sessType='within';
         sessN=4;
         distType='cosine';
@@ -4697,17 +4698,18 @@ switch(what)
                      for h=hemiIdx'
                          B1 = getrow(B,ismember(B.region,C.Roi) & B.SN==s & B.regSide==h);
                          S1 = getrow(S,ismember(S.region,C.Roi) & S.SN==s & S.regSide==h);
+                         C_h = getrow(C,C.RegSide==h);
                          % concatenate betas into one region
                          beta=[];
                          switch seqType
                              case 'trained'
-                                 D.rdm=nanmean(S1.RDM_train);
+                                 D.rdm=nanmean(S1.RDM_train,1);
                              case 'untrained'
-                                 D.rdm=nanmean(S1.RDM_untrain);
+                                 D.rdm=nanmean(S1.RDM_untrain,1);
                              case 'all'
-                                 D.rdm=nanmean(S1.RDM);
+                                 D.rdm=nanmean(S1.RDM,1);
                          end
-                         for i=1:length(unique(C.roi))
+                         for i=1:length(unique(C_h.Roi))
                              if sum(sum(isnan(B1.betaW{i})))==0
                                  beta = [beta B1.betaW{i}];
                              end
@@ -4722,11 +4724,10 @@ switch(what)
                  fprintf('Done subject %d/%d\n',find(s==sn),length(sn));
              end
          end
-         
-         keyboard;
+
          switch sessType
              case 'within'
-                save(fullfile(clusterDir,sprintf('clusterData_%sDist-%dcluster_%sSess%d',distType,clustN,sessType,sessN)),'-struct','DD');
+                 save(fullfile(clusterDir,sprintf('clusterData_%sSeq_%sDist_%s_withinSess-%d_clustN-%d_%s',seqType,distType,crossType,sessN,clustN,parcelType)),'-struct','DD');
              case 'between'
                  save(fullfile(clusterDir,sprintf('clusterData_%sDist-%dcluster_%sSess_%d-%d',distType,clustN,sessType,sessN(1),sessN(end))),'-struct','DD');
          end
@@ -5438,16 +5439,8 @@ switch(what)
         
      
     case 'job2'
-        for c=4:10 % different number of clusters
-            sml1_imana_dist('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
-            sml1_imana_dist('CLUSTER_make_group','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
-          %  sml1_imana_dist('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
-          %  sml1_imana_dist('CLUSTER_color','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
-            sml1_imana_dist('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','all','maxClust',c);
-            sml1_imana_dist('CLUSTER_surface','seqType','trained','sessType','within','sessN',4,'crossType','splithalf','maxClust',c);
-            fprintf('Done cluster %d\n',c);
-        end
-
+        sml1_imana_dist('PCM_constructModelFamily_seqType','parcelType','Brodmann','regSelect','all');
+        sml1_imana_dist('PCM_constructModelFamily_seqType','parcelType','162tessels','regSelect','subset');
     case 'job'
         % first preprocess s29,s31
 %         sml1_imana_prep('GLM_sess_all','sn',29,'sessN',4);

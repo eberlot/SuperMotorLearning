@@ -1,7 +1,8 @@
 function varargout=sml1_imana_BG_new(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 behavDir        =[baseDir '/behavioral_data/data'];   
 betaDir         =[baseDir '/betas'];
 imagingDir      =[baseDir '/imaging_data'];                     
@@ -503,7 +504,8 @@ switch(what)
                         
                         subjBGDir=fullfile(BGanatDir,space,subj_name{s});
                         %----get names!
-                        IN= fullfile(subjBGDir,[subj_name{s},'_',space,'_BG_all_fast_firstseg.nii']);
+                     %   IN= fullfile(subjBGDir,[subj_name{s},'_',space,'_BG_all_fast_firstseg.nii']);
+                        IN= fullfile(subjBGDir,[subj_name{s},'_BG_all_fast_firstseg.nii']);
                         %----make subj specific ROI image
                         OUT{h}= fullfile(subjBGDir,[subj_name{s},'_Thalamus_',hem{h},'.nii']);
                         spm_imcalc_ui(IN,OUT{h},sprintf('i1==%d',BGnumber(h)));
