@@ -3112,8 +3112,7 @@ loc_AC     = {[-112 -165 -176],...
     
     case 'job1'
       %  sml1_imana_prep('ROI_define','sn',[29,31],'parcelType','Brodmann');
-        sml1_imana_BG_new('ROI_define_BG','sn',[29,31],'regType','BG-striatum');
-        sml1_imana_BG_new('ROI_define_thalamus','sn',[29,31]);
+        sml1_imana_prep('GLM_estimate_RepSup','sessN',[1:4],'sn',[26:31]);
     case 'job2'
         sml1_imana_prep('GLM_estimate_RepSup','sessN',3,'sn',[4:9,11:25]);
     case 'job3'

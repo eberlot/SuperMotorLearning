@@ -67,33 +67,6 @@ subj_name  = {'s01','s02','s03','s04','s05','s06','s07','s08','s09','s10','s11',
 num_run = 8; % 8 functional runs
 % Other random notes %
 
-% -------------------------- Sequence stuff -------------------------------
-Seq = [1 5 3 5 3 4 3 1 5; ...
-        1 5 2 1 4 5 3 4 2; ...
-        3 4 2 1 4 5 1 5 2; ...
-        3 1 5 3 4 2 1 4 5; ...
-        5 3 4 5 4 2 1 5 3; ...
-        5 4 2 3 4 2 3 1 5; ...
-        5 1 3 1 3 2 3 5 1; ...
-        5 1 4 5 2 1 3 2 4; ...
-        3 2 4 5 2 1 5 1 4; ...
-        3 5 1 3 2 4 5 2 1; ...
-        1 3 2 1 2 4 5 1 3; ...
-        1 2 4 3 2 4 3 5 1];
-% for group 1 - group 2 (1-6 and 7-12 reversed)
-SeqChunks = [1,2,3; ...
-    4,5,6; ...
-    6,5,4; ...
-    3,6,5; ...
-    2,7,1; ...
-    7,6,3; ...
-    8,9,10; ...
-    11,12,13;...
-    13,12,11;...
-    10,13,12;...
-    9,14,8;...
-    14,13,10];
-
 % -------------------------- For plotting ---------------------------------
 gray=[120 120 120]/255;
 lightgray=[170 170 170]/255;
@@ -4197,7 +4170,7 @@ switch(what)
         end
         
         for ss = sessN
-            B=load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d.mat',parcelType,ss)));
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
             if ~strcmp(parcelType,'162tessels')
                 reg=unique(B.region)';
                 regSide=(reg>size(reg,2)/2)+1;
@@ -4209,35 +4182,37 @@ switch(what)
                 regSide(reg>158)=2;
             end
             for r = 1:length(reg)
-                for rep=1:2
-                    for p=1:length(sn)
-                        glmDirSubj=fullfile(glmFoSExDir{ss}, subj_name{sn(p)});
-                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));
-                        switch (beta_choice)
+                for p=1:length(sn)
+                    glmDirSubj=fullfile(glmFoSExDir{ss}, subj_name{sn(p)});
+                    D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                    switch (beta_choice)
                             case 'uw'
-                                beta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
+                                allbeta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
                             case 'mw'
-                                beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))}';
+                                allbeta = B.betaW{(B.SN==sn(p)&B.region==reg(r))}';
                             case 'raw'
-                                beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
+                                allbeta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
                         end
-                        
+                    for rep=1:2
                         idx=D.FoSEx==rep;
+                        beta=allbeta(idx,:);
+                        partVec{p} = D.run(idx);  % runs/partitions
+                        %m = pcm_defineSequenceModels_fixed(Seq,p);
                         m = pcm_defineSequenceModels_fixed_new(Seq,SeqChunks,p);
                         [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
                         [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
                         condVec{p} = repmat(Z,max(D.run),1);
-                        partVec{p} = D.run(idx);  % runs/partitions
-                        Data{p} = beta(:,(idx==1)')';  % Data is N x P (cond x voxels) - no intercept
-                    end;         
+                        indx = ones(size(D.run));
+                        Data{p} = beta(:,indx==1)';  % Data is N x P (cond x voxels) - no intercept
+                    end;
+                    
                     % fit models
                     T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
                     T.roi = ones(size(T.SN))*reg(r);
                     T.regType = ones(size(T.SN))*regType(r);
                     T.regSide = ones(size(T.SN))*regSide(r);
                     T.sessN = ones(size(T.SN))*ss;
-                    T.exe   = ones(size(T.SN))*rep;
-                    T=rmfield(T,{'reg','thetaCr','theta_hat'});
+                    T=rmfield(T,{'reg','thetaCr'});
                     AllReg=addstruct(AllReg,T);
                     
                     % calculations - posterior probability, knockIN/OUT
@@ -4246,7 +4221,6 @@ switch(what)
                     K.regType = ones(length(K.indx),1)*regType(r);
                     K.regSide = ones(length(K.indx),1)*regSide(r);
                     K.sessN = ones(length(K.indx),1)*ss;
-                    K.exe   = ones(length(K.indx),1)*rep;   
                     KK=addstruct(KK,K);
                 end
             end
@@ -4254,9 +4228,9 @@ switch(what)
         
         % save variables;
         dircheck(fullfile(pcmDir));
-        save(fullfile(pcmDir,sprintf('ModelFamilyComb_FoSEx_%s_new.mat',parcelType)),'Comb');
-        save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Fit_%s_fing%s_new.mat',parcelType,fingType)),'-struct','AllReg');
-        save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Stats_%s_fing%s_new.mat',parcelType,fingType)),'-struct','KK');
+        save(fullfile(pcmDir,sprintf('ModelFamilyComb_%s_new.mat',parcelType)),'Comb');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_%s_fing%s_new.mat',parcelType,fingType)),'-struct','AllReg');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fing%s_new.mat',parcelType,fingType)),'-struct','KK');
         
         
     case 'PLOT_pcm_simulateCorr'
@@ -6481,108 +6455,6 @@ function M = pcm_repsupModel_specific
 
 end
 
-function M = pcm_defineSequenceModels_fixed_new(Seq,Chunks,sn)
-%  No fixed / run component added
-% specific sequence + overall component modelled together
-    % add the option of finger identity or natural statistics
-    % --------------------------------------
-       
-    % Model1: First finger model
-    if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
-        SeqNew = zeros(12,9);
-        SeqNew([1:6],:)=Seq([7:12],:);
-        SeqNew([7:12],:)=Seq([1:6],:);
-        Seq=SeqNew;
-    end
-    nSeq=size(Seq,1);
-    M{1}(:,:)=zeros(nSeq,5); % first finger
-    for u = 1:nSeq    % 12 seq
-        firstfing = Seq(:,1);
-        M{1}(u,firstfing(u)) = 1;
-    end
-    % ---------------------------------------
-    % Model2: All fingers
-    M{2}(:,:)=zeros(nSeq,5); % all fingers
-    for u = 1:nSeq
-        for j = 1:5                 % 5 fingers
-            placenumb = find(Seq(u,:)==j);
-            M{2}(u,j) = length(placenumb);
-        end
-    end
-    %---------------------------------------
-    % Model3: Finger transitions
-    Trans = [nchoosek([1:5],2); fliplr(nchoosek([1:5],2))];
-    M{3}(:,:)=zeros(nSeq,size(Trans,1)); % all transitions (no repetition)
-    for k = 1:size(Seq,1)    % set of 12 seq
-        for p = 1:size(Trans,1) % all possible transitions
-            if any(ismember(Seq(k,1:8),Trans(p,1)))
-                ind = find(ismember(Seq(k,1:8),Trans(p,1)));    % find matching digits to first finger in doublet
-                if any(ismember(Seq(k,ind+1),Trans(p,2)))       % compare the second finger in doublet
-                    M{3}(k,p) = M{3}(k,p) + sum(ismember(Seq(k,ind+1),Trans(p,2)));
-                end
-            end
-        end
-    end
-    tmp=M{3};
-    % remove columns with 0s only
-    tmp(:,~any(tmp,1))=[];
-    M{3}=tmp;
-    %----------------------------------------
-    % Model4: Chunk - trained model
-    nChunks=max(max(Chunks));
-    A=zeros(nSeq,nChunks);
-    for i=1:nSeq
-        idxChunk=Chunks(i,:);
-        A(i,idxChunk)=1;
-    end
-    M{4} = [A(1:6,1:7);zeros(6,7)];
-    %----------------------------------------
-    % Model5: Chunk - untrained model
-    M{5} = [zeros(6,7);A(7:12,8:end)];
-    % ---------------------------------------
-    % Model6: Model with trained & untrained labels - 
-    M{6}(:,1)    = [ones(6,1);zeros(6,1)]; % Common component to trained
-    M{6}(:,2)    = [zeros(6,1);ones(6,1)]; % Common component to untrained
-    % --------------------------------------
-    % Model7: Model for each specific TRAINED sequence
-    A=zeros(6);
-    for i=1:6
-        A(i,i)=1;
-    end;
-    M{7}(:,1:6)    = [A;zeros(6)];       % Trained sequence patterns
-    % --------------------------------------
-    % Model8: Model for each specific UNTRAINED sequence    
-    A=zeros(6);
-    for i=1:6
-        A(i,i)=1;
-    end;
-    M{8}(:,1:6)  = [zeros(6);A];       % Untrained sequence patterns
- 
-end
-function K = pcm_calc(likelihood,compI)
-% calculates posterior probability, knockIN/OUT factors
-% INPUT: likelihood: (numSubj x numModels) estimated marginal log-likelihood of each model
-%        compI: (numModels x numComp) Set of indicator variables showing the presence / absence
-%               of the components for each fitted (pcm_constructModelFamily)
-% OUTPUT: K: structure with postProp, logBayes, knockIN / OUT factors 
-
-    % calculate posterior probability, logBayes factor
-    [postProp,logBayes]=pcm_componentPosterior(likelihood,compI);
-
-    % knockIN, knockOUT
-    [knockIN,knockOUT]=pcm_knockModels(likelihood,compI);
-
-    K.postProp=postProp(:);
-    K.logBayes=logBayes(:);
-    K.knockIN=knockIN(:);
-    K.knockOUT=knockOUT(:);
-    numComp=size(knockIN,2);
-    K.indx=[];
-    for i=1:numComp
-        K.indx=[K.indx; ones(length(postProp),1)*i];
-    end
-    K.sn = repmat([1:length(knockIN)]',numComp,1);
-end
 function T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm)
     % --------------------------------------
     % Crossvalidated model comparision:

@@ -1,12 +1,13 @@
 function varargout=sml_analyze (what, varargin)
 
 prefix = 'sml1_';
-baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir = '/Volumes/MotorControl/data/SuperMotorLearning';
 behDir  = fullfile(baseDir,'behavioral_data');
 anaDir  = fullfile(behDir,'analyze');
 memoryDir = fullfile(behDir,'memory');
 subj_name  = {'s01','s02','s03','s04','s05','s06','s07','s08','s09','s10','s11','s12','s13','s14','s15','s16','s17','s18',...
-                's19','s20','s21','s22','s23','s24','s25'};
+                's19','s20','s21','s22','s23','s24','s25','s26','s27','s28','s29','s30','s31'};
 cd(behDir)
 
 % -------------------------- For plotting ---------------------------------
@@ -16,7 +17,7 @@ styOtherHand= style.custom({'red','blue','green'},'markersize',10,'errorbars','s
 
 switch what
     case 'save_subj'  % create .mat structure for each subject from .dat file
-        sn=1;
+        sn=[4:9,11:31];
         vararginoptions(varargin,{'sn'});
         
         for i=sn
@@ -24,6 +25,7 @@ switch what
             outfilename  = fullfile(behDir,['analyze/sml1_' subj_name{i} '.mat']);
             D=dload(datafilename);
             save(outfilename,'-struct','D');
+            fprintf('%d.',i);
         end;
     case 'all_subj'   % go through trial structure
         sn=1;
@@ -31,6 +33,7 @@ switch what
         
         for i=sn
             sml_subj(subj_name{i});
+            fprintf('%d.',i);
         end;
     case 'addDay'
        vararginoptions(varargin,{'sn'});
@@ -52,8 +55,9 @@ switch what
         end
     
     case 'make_alldat'      % load all subjects dat files, concatenate them - one structure for all subjects 
+        sn=[4:9,11:31];
         T=[]; 
-        for i=1:length(subj_name) 
+        for i=sn
             D=load(fullfile(behDir,'analyze',[prefix subj_name{i} '.mat'])); 
             D.SN=ones(size(D.BN))*i; 
             T=addstruct(T,D); 
@@ -61,14 +65,13 @@ switch what
         save(fullfile(anaDir,'alldata.mat'),'-struct','T'); 
     
     case 'PLOT_learning_group'            % plot learning curve (MT) for seqLearn blocks
-        sn=[1:25];       
         vararginoptions(varargin,{'sn'});
         
         D=load(fullfile(behDir,'analyze','alldata.mat'));
      
         sty= style.custom({'magenta'},'markersize',12,'errorbars','shade');
         figure
-        plt.line([D.day>13 D.day>6 D.day],D.MT,'subset',D.blockType==6,'style',sty);
+        plt.line([D.day>6 D.day],D.MT,'subset',D.blockType==6,'style',sty);
         ylabel('Movement time (msec)'); xlabel('Days');
         
         figure
@@ -89,10 +92,7 @@ switch what
             hold on
         end
         
-    case 'HIST_errors_points_group'    
-        sn=[1:12];
-        vararginoptions(varargin,{'sn'});
-        
+    case 'HIST_errors_points_group'            
         D=load(fullfile(behDir,'analyze','alldata.mat'));
      
         figure
@@ -150,6 +150,7 @@ switch what
             xlabel('Day'); ylabel('Movement time');
             hold on;
         end
+        
     case 'PLOT_testFoSEx_MT'
         D=load(fullfile(anaDir,'testsRH.mat'));
         
@@ -191,8 +192,7 @@ switch what
         %
         figure
         plt.box(N.testDay,N.MT,'split',[N.seqType N.FoSEx],'plotall',0,'leg',{'1st train','2nd train','1st untrain','2nd untrain'},'leglocation','northeast','style',styRSbeh);
-        %
-        
+        %      
     case 'PLOT_testFoSEx_ER'
         D=load(fullfile(anaDir,'testsRH.mat'));
         
@@ -239,16 +239,13 @@ switch what
          xlabel('Test days'); ylabel('Relative movement time');
          
          save(fullfile(anaDir,'tests_OtherHand_psc.mat'),'-struct','T');
-   
-        
-        
+
     case 'FORM_testRH_group'
-        sn=[1:25];
+        sn=[4:9,11:31];
         vararginoptions(varargin,{'sn'});
         D=load(fullfile(anaDir,'alldata.mat'));
         
-        TT=[];
-        
+        TT=[];  
         for i=1:length(sn)
             T=getrow(D,D.SN==sn(i)&D.blockType==11);
             
@@ -266,6 +263,8 @@ switch what
         sty= style.custom({'magenta','green'},'markersize',12);
         figure
         plt.box(D.testDay,D.MT,'split',D.seqType,'subset',D.seqType==1 | D.seqType==4,'leg',{'trained','random'},'style',sty,'plotall',0);
+        figure
+        plt.box(D.testDay,D.MT,'split',D.seqType,'leg',{'trained','random','chunked'},'plotall',0);
         %title('Trained sequences'); 
         xlabel('Test day'); ylabel('Movement time');
     case 'STATS_testRH'
@@ -286,34 +285,18 @@ switch what
         % test day 4 
         ttestDirect(var,[D.seqType D.SN],2,'paired','subset',D.testDay==4 & D.seqType~=4);
     
-    case 'PLOT_tests_chunk'
-        vararginoptions(varargin,{'sn'});
-        
-        figure
-        for i=1:length(sn)
-            D=load(fullfile(behDir,'analyze',['sml1_' subj_name{sn(i)} '.mat']));
-            R = getrow(D,D.blockType==11);
-            subplot(1,length(sn),i)
-           plt.line(R.BN,R.MT,'split',R.seqType,'leg',{'train','chunks','random'},'leglocation','northeast');
-            xlabel('Block number'); ylabel('Movement time');
-            hold on;
-        end    
-
     case 'FORM_OtherHand'
-        sn=[1:25];
+        sn=[4:9,11:31];
         vararginoptions(varargin,{'sn'});
         D=load(fullfile(anaDir,'alldata.mat'));
         
-        TT=[];
-        
+        TT=[];     
         for i=1:length(sn)
-            T=getrow(D,D.SN==sn(i) & (D.blockType==10 | D.blockType==12));
-            
+            T=getrow(D,D.SN==sn(i) & (D.blockType==10 | D.blockType==12));      
             % determine days
             BN=unique(T.BN);
             BN_indx=[0 find(diff(BN)>1)' length(BN)];
-            T.testDay=zeros(size(T.day));
-            
+            T.testDay=zeros(size(T.day));  
             % identify days based on separate in numbers of consequent BN
             testDay=unique(T.day);
             for t = 1:length(BN_indx)-1 % test days
@@ -321,8 +304,7 @@ switch what
                 T.testDay(ismember(T.BN,indx'))=t;
             end
             TT=addstruct(TT,T);
-        end
-        
+        end  
         TT.OH_seqIdx=TT.seqType;
         TT.OH_seqIdx(TT.seqType==6)=1;  % trained intrinsic
         TT.OH_seqIdx(TT.seqType==7)=2;  % trained extrinsic
@@ -376,7 +358,7 @@ switch what
     case 'FORM_OtherHand_psc'
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
         
-        D=getrow(D,D.testDay>1 & D.SN~=2); % remove the first test day - only random
+        D=getrow(D,D.testDay>1); % remove the first test day - only random
         D.testDay=D.testDay-1; % relabel test days - start with 1
         D.seqIdx=D.seqType;
         D.seqIdx(D.seqType==6)=1;  % trained intrinsic
