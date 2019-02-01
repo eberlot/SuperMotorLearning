@@ -1,11 +1,13 @@
 function varargout=sml1_imana_dist(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-%baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 betaDir         =[baseDir '/betas'];
 behavDir        =[baseDir '/behavioral_data/data'];
-clusterDir      =[baseDir '/cluster'];
+connectDir      =[baseDir '/connectivity'];
+clusterDir      =[connectDir '/cluster'];
+transformDir    =[connectDir '/transform'];
 imagingDir      =[baseDir '/imaging_data'];                     
 anatomicalDir   =[baseDir '/anatomicals'];       
 caretDir        =[baseDir '/surfaceCaret'];              
@@ -96,7 +98,6 @@ hemName    = {'LeftHem','RightHem'};
 regname         = {'S1','M1','PMd','PMv','SMA','V12','SPLa','SPLp','CaudateN' 'Pallidum', 'Putamen' 'Thalamus','CIV','CV','CVI'};
 regname_cortex  = {'S1','M1','PMd','PMv','SMA','V12','SPLa','SPLp'};
 regname_BG      = {'CaudateN' 'Pallidum', 'Putamen', 'Thalamus'};
-regname_cerebellum = {'LobIV','LobV','LobVI'};
 numregions_surf = 8;
 numregions_BG   = 4;
 numregions_cerebellum = 3;
@@ -133,7 +134,7 @@ ms=12;
 stySeq=style.custom({'red','blue'},'markersize',ms);
 stySeqType=style.custom(gray,'markersize',12);
 
-stySess=style.custom({gray,lightgray,silver,black},'markersize',ms);
+stySess=style.custom({black,gray,lightgray,blue},'markersize',ms);
 styTrained_sess=style.custom({red,mediumred,lightred},'markersize',ms);
 styUntrained_sess=style.custom({blue,mediumblue,lightblue},'markersize',ms);
 
@@ -1435,11 +1436,12 @@ switch(what)
 
         % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
         % (1) Set parameters
-        sn  = [4:9,11:25];
+        sn  = [4:9,11:31];
         roi = [1:8];
-        sessN=1;
+        sessN=[1:4];
         betaChoice='multiPW'; % multiPW, uniPW, raw
-        vararginoptions(varargin,{'sn','roi','sessN','betaChoice'});
+        parcelType='Brodmann'; 
+        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
         
         numRun=numruns_task_sess;
         numCond=numel(num_seq);
@@ -1448,7 +1450,7 @@ switch(what)
         RR=[];
         %========%
         for ss=sessN
-            T = load(fullfile(regDir,sprintf('betas_Brodmann_sess%d_glm3',ss))); % loads in struct 'T'
+            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
             for h=1:2
                 for r=roi
                     for s=sn
@@ -1474,53 +1476,126 @@ switch(what)
                         [R.r2_cross_rm, R.r_cross_rm]   = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',1); % correlation of patterns
                         [R.r2_cross, R.r_cross]         = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',0);
                         
-                        R.sn =s;
-                        R.sessN=ss;
-                        R.regType=r;
-                        R.hemi=h;
+                        R.sn        = s;
+                        R.sessN     = ss;
+                        R.region    = (h-1)*max(roi)+r;
+                        R.regType   = r;
+                        R.regSide   = h;
                         
                         RR=addstruct(RR,R);
                     end
+                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
                 end
             end
         end
         
         %save the structure
-        save(fullfile(QCDir,sprintf('QualityControl_%sBetas',betaChoice)),'-struct','RR');
+        save(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
     case 'ROI_PLOT_pattern_consist' 
        var = 'cnr'; % cnr, r2_rm, r2, r2_cross, r_cross, r2_cross_rm, r_cross_rm
        betaChoice = 'multiPW';
        roi=[1:8];
-       vararginoptions(varargin,{'var','betaChoice','roi'});
+       parcelType='Brodmann';
+       vararginoptions(varargin,{'var','betaChoice','roi','parcelType'});
        
-       T = load(fullfile(QCDir,sprintf('QualityControl_%sBetas',betaChoice)));
-       
-       % split by hemisphere
+       T = load(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)));
+          
        figure
-       subplot(3,4,[1:4]);
-       plt.bar(T.regType,T.(var),'split',T.hemi,'leg',{'Contra','Ipsi'},'leglocation','northeast');
-       ylabel(sprintf('%s %s',var,betaChoice));
-       xlabel('ROIs');
-       
-       for rr=roi
-           subplot(3,4,rr+4)
-           plt.hist(T.(var),'subset',T.regType==rr,'split',T.hemi,'leg',{'contra','ipsi'},'leglocation','north');
-           title(sprintf('%s',regname_cortex{rr}));
-       end
-       
-       % split by session
-     %  figure
-     %  subplot(3,4,[1:4]);
-     %  plt.bar(T.regType,T.(var),'subset',T.hemi==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},'leglocation','northeast');
-     %  ylabel(sprintf('%s %s',var,betaChoice));
-     %  xlabel('ROIs');
-       
-       for rr=roi
-           subplot(3,4,rr+4)
-           plt.hist(T.(var),'subset',T.hemi==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},'leglocation','north');
-           title(sprintf('%s',regname_cortex{rr}));
-       end
-    
+       subplot(211)
+       plt.bar(T.regType,T.r_cross,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
+           'leglocation','northeast','style',stySess);
+       title('crossval-correlation');
+       ylabel('r');
+       subplot(212)
+       plt.bar(T.regType,T.r_cross_rm,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
+           'leglocation','northeast','style',stySess);
+       title('crossval-correlation mean removed');
+       ylabel('r');
+    case 'ROI_runwiseDrift'
+        % pattern consistency for specified roi
+        % Pattern consistency is a measure of the proportion of explained
+        % beta variance across runs within conditions. 
+        % 
+
+        % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
+        % (1) Set parameters
+        sn  = [4:9,11:31];
+        roi = [1:8];
+        sessN=[1:4];
+        betaChoice='multiPW'; % multiPW, uniPW, raw
+        parcelType='Brodmann'; 
+        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
+        
+        numRun=numruns_task_sess;
+        numCond=numel(num_seq);
+        % make vectors for pattern consistency func
+        partVec = kron([1:numRun]',ones(numCond,1));
+        %condVec = kron(ones(numRun,1),[1:numCond]');
+        RR=[];
+        for ss=sessN
+            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
+            for h=1:2
+                for r=roi
+                    for s=sn
+                        S = getrow(T,(T.SN==s & T.regType==r & T.regSide==h));
+                        switch(betaChoice)
+                            case 'raw'
+                                beta  = S.betaRAW{1};
+                            case 'uniPW'
+                                beta  = S.betaUW{1};
+                            case 'multiPW'
+                                beta  = S.betaW{1};
+                        end
+                        for r1=1:8
+                            for r2=r1:8
+                                beta1       = beta(partVec==r1,:);
+                                beta2       = beta(partVec==r2,:);
+                                R.corr      = mean(diag(corr(beta1',beta2')));
+                                beta1       = bsxfun(@minus,beta1,mean(beta1,1));
+                                beta2       = bsxfun(@minus,beta2,mean(beta2,1));
+                                R.corr_rm   = mean(diag(corr(beta1',beta2')));
+                                R.run1      = r1;
+                                R.run2      = r2;
+                                R.sn        = s;
+                                R.sessN     = ss;
+                                R.region    = (h-1)*max(roi)+r;
+                                R.regType   = r;
+                                R.regSide   = h;
+                                RR=addstruct(RR,R);
+                            end
+                        end
+                    end
+                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
+                end
+            end
+        end
+        %save the structure
+        save(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
+    case 'PLOT_runwiseDrift'
+        betaChoice='multiPW'; % multiPW, uniPW, raw
+        parcelType='Brodmann'; 
+        roi=[1:8];
+        hemi=1;
+        var='corr'; % corr or corr_rm
+        vararginoptions(varargin,{'roi','betaChoice','parcelType','hemi','var'});
+        T = load(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)));
+        
+        figure
+        for r=1:numel(roi)
+            subplot(numel(roi),1,r)
+            plt.line(T.run1,T.(var),'subset',T.regType==roi(r) & T.regSide==hemi & T.run2==T.run1+1,'split',T.sessN,...
+                'style',stySess);
+            title(regname_cortex{roi(r)});
+        end
+        
+        figure
+        for r=1:numel(roi)
+            subplot(numel(roi),1,r)
+            plt.line(T.run2,T.(var),'subset',T.regType==roi(r) & T.regSide==hemi & T.run1==1 & T.run2~=1,'split',T.sessN,...
+                'style',stySess);
+            title(regname_cortex{roi(r)});
+        end
+        
     case 'SURF_flatmap_rgb'
         sessN=[1:4];
         smooth=0;
@@ -5111,43 +5186,7 @@ switch(what)
             end
         end
         keyboard;
-    case 'CLUSTER_make_group'
-        parcelType='162tessels'; % Brodmann or 162tessels; or combined
-        seqType='all'; % all, trained, untrained
-        maxClust=10;
-        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','maxClust','seqType'});
-        T1 = load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)));
-        
-        [C L U]=SpectralClustering(T1.A,maxClust,3);
-       % Clust = kmeans(T1.A,maxClust);
-        T1.community = community_louvain(T1.A);
-        T1.cluster   = C;
-        T1.laplace   = L;
-        T1.eigenv    = U;
-        save(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s_%d',seqType,parcelType,maxClust)),'-struct','T1');
-    case 'CLUSTER_make_subj'
-       % cluster separately for each subject
-        parcelType='162tessels'; % Brodmann or 162tessels; or combined
-        seqType='all'; % all, trained, untrained
-        maxClust=7;
-        vararginoptions(varargin,{'sn','sessN','parcelType','sessType','hemi','maxClust','seqType'});
-        T1 = load(fullfile(distPscDir,sprintf('consist_crossval_%sSeq_%s',seqType,parcelType)));
-        
-        for s=1:size(T1.A_all,3);
-            [C L U]=SpectralClustering(T1.A_all(:,:,s),maxClust,3);
-            % Clust = kmeans(T1.A,maxClust);
-            A{s}.A         = T1.A_all(:,:,s);
-            A{s}.community = community_louvain(T1.A);
-            A{s}.cluster   = C;
-            A{s}.laplace   = L;
-            A{s}.eigenv    = U;
-            A{s}.Roi       = T1.Roi;
-            A{s}.RegType   = T1.RegType;
-            A{s}.RegSide   = T1.RegSide;
-            A{s}.sessN     = T1.sessN;
-        end
-        save(fullfile(distPscDir,sprintf('consist_individ_crossval_%sSeq_%s_%d',seqType,parcelType,maxClust)),'A');
-                
+           
     case 'CLUSTER_consist_subj'
         % estimate the consistency of RDMs in each tessel
         % both within and across subjects
@@ -5631,6 +5670,612 @@ switch(what)
      %   sml1_imana_dist('SEARCH_define','sn',[26:31]);
       %  sml1_imana_dist('SEARCH_dist_runLDC','sn',[26:31],'sessN',[1:4]);
         sml1_imana_repsup('SEARCH_run_LDC','sn',[26:31],'sessN',[1:4]);
+        case 'TRANSFORM_rdms'
+        % use this case to transform G from reg1->reg2
+        % save in a subfolder of the clusterDir
+        sn=[4:9,11:31];
+        parcelType='Brodmann'; %do combination - Brodmann + BG-striatum + thalamus
+        betaChoice='multi'; % multi, uni
+        sessN=[1:4];
+        seqType='all'; %all, trained, untrained
+        vararginoptions(varargin,{'sn','parcelType','sessN','betaChoice','seqType'});
+        
+        TT=[];
+        q=zeros(size(sessN));
+        for ss=sessN
+            if ~iscell(parcelType)
+                S = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
+            else
+                for i=1:size(parcelType,2)
+                    Struct{i} = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType{i},betaChoice,ss)));
+                end
+                    S = sml1_imana_dist('combine_reg','Struct',Struct);
+            end
+            % pre-allocate alpha matrix
+            A{ss}=zeros(length(unique(S.region)),length(unique(S.region)),length(unique(sn)));
+            for s=1:length(sn)
+                S1 = getrow(S,S.SN==sn(s));
+                for r1=unique(S.region)'
+                    for r2=unique(S.region)'
+                        % extract Gs (square)
+                        IPM1=S1.IPM(S1.region==r1,:);
+                        IPM2=S1.IPM(S1.region==r2,:);
+                      %  IPM1=S1.RDM(S1.region==r1,:);
+                      %  IPM2=S1.RDM(S1.region==r2,:);
+                        G1=rsa_squareIPM(IPM1);
+                        G2=rsa_squareIPM(IPM2);
+                       % G1=rsa_squareRDM(IPM1);
+                       % G2=rsa_squareRDM(IPM2);
+                       % new
+                       H=eye(12)-ones(12,12)./12;  % centering matrix!
+                       G1 = H*G1*H';  % double centered G matrix - rows and columns
+                       G2 = H*G2*H'; 
+                       IPM1 = rsa_vectorizeIPM(G1);
+                       IPM2 = rsa_vectorizeIPM(G2);
+                       %IPM1=diag(G1)';
+                       %IPM2=diag(G2)';
+                        % extract subsets of Gs for trained / untrained
+                        if strcmp(seqType,'trained')
+                            T.G1 = {G1(1:6,1:6)};
+                            T.G2 = {G2(1:6,1:6)};
+                        elseif strcmp(seqType,'untrained')
+                            T.G1 = {G1(7:12,7:12)};
+                            T.G2 = {G2(7:12,7:12)};
+                        else
+                            T.G1 = {G1};
+                            T.G2 = {G2};
+                        end
+                        % calculate cosine and KL divergence between G1/2
+                        T.cosDist = pdist([IPM1;IPM2],'cosine'); 
+                    %    T.KL = KLdivergence(T.G1{1},T.G2{1});
+                        % calculate transformation matrix G1 -> G2
+                        [Trans,predG]=calcTransformG(T.G1{1},T.G2{1});
+                        T.T={round(Trans,3)}; % round
+                        T.predG={predG};
+                        T.sn=sn(s);
+                        T.sn_idx=s;
+                        T.sessN=ss;
+                        T.reg1=r1;
+                        T.reg2=r2;
+                        T.regType1=S1.regType(S1.region==r1);
+                        T.regType2=S1.regType(S1.region==r2);
+                        T.regSide1=S1.regSide(S1.region==r1);
+                        T.regSide2=S1.regSide(S1.region==r2);
+                        TT=addstruct(TT,T);
+                        % construct alpha matrix with cosine distances
+                        A_subj{ss}(r1,r2,s)=T.cosDist;
+                    end
+                end
+                fprintf('Done sess-%d\tsubj-%d/%d\n',ss,s,length(unique(sn)));
+            end
+            % save 0.05 for constructing similarity matrix
+            A_group{ss}=nanmean(A_subj{ss},3);
+            q(ss)=quantile(rsa_vectorizeRDM(A_group{ss}),0.05);
+        end
+        % make a similarity alpha matrix - using the same threshold
+        thres = max(q);
+        for i=1:numel(sessN)
+            A{i} = exp(-A_group{i}.^2./(2*thres^2));
+            %A{i} = 1-A_group{i};
+        end
+        if ~iscell(parcelType)
+            save(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'A');
+            save(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'-struct','TT');
+        else
+            numParcel = size(parcelType,2);
+            for i=1:numParcel
+                if i==1
+                    nameParcel = sprintf('%s',parcelType{i});
+                else
+                    nameParcel = sprintf('%s-%s',nameParcel,parcelType{i});
+                end
+            end
+            save(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW',nameParcel,seqType,betaChoice)),'A');
+            save(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW',nameParcel,seqType,betaChoice)),'-struct','TT');
+        end
+    case 'TRANSFORM_sess'
+        sn=[4:9,11:31];
+        parcelType='Brodmann'; %do combination - Brodmann + BG-striatum + thalamus
+        betaChoice='multi'; % multi, uni
+        sessN=[1:4];
+        seqType='all'; %all, trained, untrained
+        vararginoptions(varargin,{'sn','parcelType','sessN','betaChoice','seqType'});
+        
+        TT=[];
+        for s1=1:3 % session
+            S1 = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,s1)));
+            S2 = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,s1+1)));
+            for s=1:length(sn)
+                K1 = getrow(S1,S1.SN==sn(s));
+                K2 = getrow(S2,S2.SN==sn(s));
+                for r=unique(K1.region)'
+                    % extract RDMs
+                    switch seqType
+                        case 'trained'
+                            dist1 = K1.RDM_train(r,:);
+                            dist2 = K2.RDM_train(r,:);
+                        case 'untrained'
+                            dist1 = K1.RDM_untrain(r,:);
+                            dist2 = K2.RDM_untrain(r,:);
+                        case 'all'
+                            dist1 = K1.RDM(r,:);
+                            dist2 = K2.RDM(r,:);
+                    end
+                    % calculate cosine and KL divergence between dist1/2
+                    T.cosDist = pdist([dist1;dist2],'cosine');
+                    %    T.KL = KLdivergence(T.G1{1},T.G2{1});
+                    % calculate transformation matrix G1 -> G2
+                    %  [Trans,predG]=calcTransformG(T.G1{1},T.G2{1});
+                    %  T.T={round(Trans,3)}; % round
+                    %  T.predG={predG};
+                    T.sn=sn(s);
+                    T.sn_idx=s;
+                    T.sess1=s1;
+                    T.sess2=s1+1;
+                    T.sessTrans = s1;
+                    T.reg=r;
+                    T.regType=K1.regType(K1.region==r);
+                    T.regSide=K1.regSide(K1.region==r);
+                    TT=addstruct(TT,T);    
+                end
+            end
+        end
+        
+        save(fullfile(transformDir,sprintf('transform_sessTrans_cosine_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'-struct','TT');
+
+    case 'TRANSFORM_uni'
+        % use this case to transform G from reg1->reg2
+        % save in a subfolder of the clusterDir
+        sn=[4:9,11:31];
+        parcelType='Brodmann'; %do combination - Brodmann + BG-striatum + thalamus
+        betaChoice='multi'; % multi, uni
+        sessN=[1:4];
+        seqType='all'; %all, trained, untrained
+        vararginoptions(varargin,{'sn','parcelType','sessN','betaChoice','seqType'});
+        
+        TT=[];
+        condVec = repmat([1:12]',8,1);
+        X=indicatorMatrix('identity_p',condVec);
+        q=zeros(size(sessN));
+        for ss=sessN
+            
+            S = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss)));
+            
+            % pre-allocate alpha matrix
+            A{ss}=zeros(length(unique(S.region)),length(unique(S.region)),length(unique(sn)));
+            for s=1:length(sn)
+                S1 = getrow(S,S.SN==sn(s));
+                for r1=unique(S.region)'
+                    for r2=unique(S.region)'
+                        % extract Gs (square)
+                        t1=S1.betaW{r1};
+                        t2=S1.betaW{r2};
+                        d1=nanmean(pinv(X)*t1(1:size(X,1),:),2);
+                        d2=nanmean(pinv(X)*t2(1:size(X,1),:),2);
+                        % calculate cosine and KL divergence between G1/2
+                        T.cosDist = corr(d1,d2);
+                        T.sn=sn(s);
+                        T.sn_idx=s;
+                        T.sessN=ss;
+                        T.reg1=r1;
+                        T.reg2=r2;
+                        T.regType1=S1.regType(S1.region==r1);
+                        T.regType2=S1.regType(S1.region==r2);
+                        T.regSide1=S1.regSide(S1.region==r1);
+                        T.regSide2=S1.regSide(S1.region==r2);
+                        TT=addstruct(TT,T);
+                        % construct alpha matrix with cosine distances
+                        A_subj{ss}(r1,r2,s)=T.cosDist;
+                    end
+                end
+                fprintf('Done sess-%d\tsubj-%d/%d\n',ss,s,length(unique(sn)));
+            end
+            % save 0.05 for constructing similarity matrix
+            A_group{ss}=nanmean(A_subj{ss},3);
+            q(ss)=quantile(rsa_vectorizeRDM(A_group{ss}),0.05);
+        end
+        % make a similarity alpha matrix - using the same threshold
+        thres = max(q);
+        for i=1:numel(sessN)
+            A{i} = 1-exp(-A_group{i}.^2./(2*thres^2));
+            %A{i} = 1-A_group{i};
+        end
+        save(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW_uni',parcelType,seqType,betaChoice)),'A');
+        save(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW_uni',parcelType,seqType,betaChoice)),'-struct','TT');
+    case 'TRANSFORM_rdms_crossval'
+        % use this case to transform G from reg1->reg2
+        % save in a subfolder of the clusterDir
+        sn=[4:9,11:31];
+        parcelType='Brodmann'; %do combination - Brodmann + BG-striatum + thalamus
+        betaChoice='multi'; % multi, uni
+        sessN=[1:4];
+        seqType='all'; %all, trained, untrained
+        vararginoptions(varargin,{'sn','parcelType','sessN','betaChoice','seqType'});
+        
+        TT=[];
+        q=zeros(size(sessN));
+        
+        if ~iscell(parcelType)
+            SS = load(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaChoice,parcelType)));
+            SS=rmfield(SS,{'G_partA','G_partB'});
+        else
+            for i=1:size(parcelType,2)
+                Struct{i} = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType{i},betaChoice,ss)));
+            end
+            S = sml1_imana_dist('combine_reg','Struct',Struct);
+        end
+        for ss=sessN
+            S = getrow(SS,SS.sessN==ss);
+            % pre-allocate alpha matrix
+            A{ss}=zeros(length(unique(S.roi)),length(unique(S.roi)),length(unique(sn)));
+            for s=1:length(sn)
+                S1 = getrow(S,S.sn==sn(s));
+                for r1=unique(S.roi)'
+                    for r2=unique(S.roi)'
+                        % extract RDMs
+                        switch seqType
+                            case 'trained'
+                                dist1 = [S1.partA_train(S1.roi==r1,:);S1.partB_train(S1.roi==r2,:)];
+                                dist2 = [S1.partB_train(S1.roi==r1,:);S1.partA_train(S1.roi==r2,:)];
+                            case 'untrained'
+                                dist1 = [S1.partA_untrain(S1.roi==r1,:);S1.partB_untrain(S1.roi==r1,:)];
+                                dist2 = [S1.partA_untrain(S1.roi==r2,:);S1.partB_untrain(S1.roi==r2,:)];
+                            case 'all'
+                                dist1 = [S1.partA_all(S1.roi==r1,:);S1.partB_all(S1.roi==r1,:)];
+                                dist2 = [S1.partA_all(S1.roi==r2,:);S1.partB_all(S1.roi==r2,:)];
+                        end               
+                        % calculate cosine and KL divergence between G1/2
+                        T.cosDist = mean([pdist(dist1,'cosine') pdist(dist2,'cosine')]); 
+                    %    T.KL = KLdivergence(T.G1{1},T.G2{1});
+                        % calculate transformation matrix G1 -> G2
+                     %   [Trans,predG]=calcTransformG(T.G1{1},T.G2{1});
+                     %   T.T={round(Trans,3)}; % round
+                     %   T.predG={predG};
+                        T.sn=sn(s);
+                        T.sn_idx=s;
+                        T.sessN=ss;
+                        T.reg1=r1;
+                        T.reg2=r2;
+                        T.regType1=S1.regType(S1.roi==r1);
+                        T.regType2=S1.regType(S1.roi==r2);
+                        T.regSide1=S1.regSide(S1.roi==r1);
+                        T.regSide2=S1.regSide(S1.roi==r2);
+                        TT=addstruct(TT,T);
+                        % construct alpha matrix with cosine distances
+                        A_subj{ss}(r1,r2,s)=T.cosDist;
+                    end
+                end
+                fprintf('Done sess-%d\tsubj-%d/%d\n',ss,s,length(unique(sn)));
+            end
+            % save 0.05 for constructing similarity matrix
+            A_group{ss}=nanmean(A_subj{ss},3);
+            q(ss)=quantile(rsa_vectorizeRDM(A_group{ss}),0.05);
+        end
+        % make a similarity alpha matrix - using the same threshold
+        thres = max(q);
+        for i=1:numel(sessN)
+            A_group{i}(1:size(A_group{1},1)+1:end)=zeros(size(A_group{1},1),1);
+            A{i} = exp(-A_group{i}.^2./(2*thres^2));
+            %A{i} = 1-A_group{i};
+        end
+        if ~iscell(parcelType)
+            save(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW_crossval',parcelType,seqType,betaChoice)),'A');
+            save(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW_crossval',parcelType,seqType,betaChoice)),'-struct','TT');
+        else
+            numParcel = size(parcelType,2);
+            for i=1:numParcel
+                if i==1
+                    nameParcel = sprintf('%s',parcelType{i});
+                else
+                    nameParcel = sprintf('%s-%s',nameParcel,parcelType{i});
+                end
+            end
+            save(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW',nameParcel,seqType,betaChoice)),'A');
+            save(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW',nameParcel,seqType,betaChoice)),'-struct','TT');
+        end
+    case 'combine_reg'
+        vararginoptions(varargin,{'Struct'});
+        Gs=[];
+        % transform per hemisphere
+        rIdx=1; rtF(1)=1; rtS(1)=1;
+        for h=1:2
+            for i=1:size(Struct,2);
+                %  S = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType{i},betaChoice,sessN)));
+                S = Struct{i};
+                S = getrow(S,S.regSide==h);
+                % what to add
+                rAdd = rIdx-min(S.region);
+                if h==1
+                    rtAdd = rtF(i)-min(S.regType);
+                else
+                    rtAdd = rtS(i)-min(S.regType);
+                end
+                S.region = S.region+rAdd;
+                S.regType = S.regType+rtAdd;
+                %S.regType=S.regType+max(Gs.regType)
+                Gs = addstruct(Gs,S);
+                rIdx=max(S.region)+1; rtF(i+1)=max(S.regType)+1; rtS(i)=min(S.regType);
+            end
+        end
+        varargout={Gs}; 
+    case 'TRANSFORM_predict'
+        % predict new G based on transformation matrix
+        parcelType='Brodmann';
+        seqType='all';
+        betaChoice='multi';
+        sn=[4:9,11:31];
+        vararginoptions(varargin,{'parcelType','hemi','seqType','betaChoice'});
+        
+        S=load(fullfile(transformDir,sprintf('transform_cosine_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)));
+        
+        % initialize
+        PP=[];
+        reg = unique(S.reg1)';
+        regComb = indicatorMatrix('allpairs',reg);
+        D{1} = zeros(length(reg),length(reg),length(unique(S.sn)));
+        D{2} = D{1}; D{3}=D{1}; D2=D;
+        for s=1:length(unique(S.sn))
+            for r=1:size(regComb,1) % go through all region combinations
+                rIdx = find(regComb(r,:));
+                % extract the right row and transform matrix T from sess1
+                S1 = getrow(S,S.sn==sn(s) & S.reg1==rIdx(1) & S.reg2==rIdx(2));
+                T = S1.T(S1.sessN==1);
+                T = T{1};
+                % predict for session 2-4
+                for ss=2:4
+                    [predG,P.corr,P.cosDist]=predictGfromTransform(S1.G1{ss},T,'G2',S1.G2{ss});
+                    P.predG={predG};
+                    P.sn=sn(s);
+                    P.sessN=ss;
+                    P.reg1=rIdx(1);
+                    P.reg2=rIdx(2);
+                    PP=addstruct(PP,P);
+                    % fill deviation matrix D
+                    D{ss-1}(rIdx(2),rIdx(1),s)=P.cosDist;
+                    D2{ss-1}(rIdx(2),rIdx(1),s)=P.corr;
+                end
+            end
+            fprintf('Done subject %d/%d\n',s,length(sn));
+        end
+        for i=1:3
+            D_group{i}=nanmean(D{i},3);
+            q(i)=quantile(rsa_vectorizeRDM(D_group{i}),0.05);
+        end
+        thres = max(q);
+        for i=1:3
+            D_group_cos{i} = 1-exp(-D_group{i}.^2./(2*thres^2));
+            D_group_corr{i} = 1-nanmean(D2{i},3);
+        end
+        
+        save(fullfile(transformDir,sprintf('predict_cosMatrix_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'D_group_cos');
+        save(fullfile(transformDir,sprintf('predict_corrMatrix_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'D_group_corr');
+        save(fullfile(transformDir,sprintf('predict_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'-struct','PP');       
+    case 'TRANSFORM_feature'
+        % assess features in the transformation matrix
+         % use this case to transform G from reg1->reg2
+        % save in a subfolder of the clusterDir
+        sn=[4:9,11:31];
+        parcelType='Brodmann'; %do combination - Brodmann + BG-striatum + thalamus
+        betaChoice='multi'; % multi, uni
+        sessN=[1:4];
+        seqType='all'; %all, trained, untrained
+        featureName = {'identity','scaling','firstFing','allFing','transitions','chunk','seq'};
+        vararginoptions(varargin,{'sn','parcelType','sessN','betaChoice','seqType'});
+        
+        TT=[];
+        
+        for ss=sessN
+            S = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
+            for s=1:length(sn)
+                S1 = getrow(S,S.SN==sn(s));
+                for r1=unique(S.region)'
+                    for r2=(r1+1):length(unique(S.region))
+                        % extract Gs (square)
+                        IPM1=S1.IPM(S1.region==r1,:);
+                        IPM2=S1.IPM(S1.region==r2,:);
+                        G1=rsa_squareIPM(IPM1);
+                        G2=rsa_squareIPM(IPM2);
+                        % extract subsets of Gs for trained / untrained
+                        if strcmp(seqType,'trained')
+                            G1 = G1(1:6,1:6);
+                            G2 = G2(1:6,1:6);
+                        elseif strcmp(seqType,'untrained')
+                            G1 = G1(7:12,7:12);
+                            G2 = G2(7:12,7:12);
+                        end
+                        % get the feature matrices
+                        % identity, scaling, first fing, all fing, chunk, seq
+                        F = defineFeatures(G1,G2,seqType,Seq,SeqChunks,sn(s));
+                        nFeat = size(F,2);
+                        for f=1:nFeat
+                            % calculate transformation based on features G1 -> G2
+                            [predG,T.cor(f,:),T.cosDist(f,:)]=predictGfromTransform(G1,F{f},'G2',G2);
+                            T.predG(f,:)={predG};
+                            T.featureLabel(f,:)=featureName(f);
+                            T.feature(f,:)=f;
+                        end
+                        % save everything correctly
+                        T.G1        = repmat({G1},nFeat,1);
+                        T.G2        = repmat({G2},nFeat,1);
+                        T.sn        = repmat(sn(s),nFeat,1);
+                        T.sn_idx    = repmat(s,nFeat,1);
+                        T.sessN     = repmat(ss,nFeat,1);
+                        T.reg1      = repmat(r1,nFeat,1);
+                        T.reg2      = repmat(r2,nFeat,1);
+                        T.regType1  = repmat(S1.regType(S1.region==r1),nFeat,1);
+                        T.regType2  = repmat(S1.regType(S1.region==r2),nFeat,1);
+                        T.regSide1  = repmat(S1.regSide(S1.region==r1),nFeat,1);
+                        T.regSide2  = repmat(S1.regSide(S1.region==r2),nFeat,1);
+                        TT = addstruct(TT,T);
+                    end
+                end
+                fprintf('Done sess-%d\tsubj: %d/%d\n',ss,s,length(unique(sn)));
+            end
+        end
+        
+        save(fullfile(transformDir,sprintf('transform_Features_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)),'-struct','TT');
+    case 'TRANSFORM_plotAlpha'
+        % plot alpha
+        parcelType='Brodmann';
+        hemi=1; % 1, 2 or [1,2]
+        seqType='all';
+        betaChoice='multi';
+        sessNum=4;
+        textLabel=regname;
+        vararginoptions(varargin,{'parcelType','hemi','seqType','betaChoice'});
+        
+        if ~iscell(parcelType)
+            load(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)));
+            C = load(fullfile(regDir,sprintf('region_%s_centroids_group',parcelType))); % load coordinates
+        else
+            numParcel = size(parcelType,2);
+            for i=1:numParcel
+                if i==1
+                    nameParcel = sprintf('%s',parcelType{i});
+                else
+                    nameParcel = sprintf('%s-%s',nameParcel,parcelType{i});
+                end
+                C1{i} = load(fullfile(regDir,sprintf('region_%s_centroids_group',parcelType{i}))); % load coordinates
+            end
+            load(fullfile(transformDir,sprintf('alpha_%s_%sSeq_%sPW',nameParcel,seqType,betaChoice)));
+            % create a new coordinates structure
+            C=sml1_imana_dist('combine_reg','Struct',C1);
+            C=rmfield(C,'flatCentr');
+        end
+        
+        if size(hemi,2)==1
+            idx=find(C.regSide==hemi)';
+            C=getrow(C,C.regSide==hemi);
+            for i=1:sessNum
+                A{i}=A{i}(idx,idx,:);
+            end
+        else
+            idx=unique(C.region)';
+        end
+        
+        % all pairs of connections
+        pIdx=indicatorMatrix('allpairs',[1:length(idx)]);
+        figure
+        for i=1:sessNum
+            A_vec=rsa_vectorizeRDM(A{i});
+            subplot(2,sessNum,i)
+            imagesc(A{i});
+            caxis([0 1]);
+            title(sprintf('session-%d',i))
+            for k=1:size(pIdx,1)
+                p=find(pIdx(k,:));
+                subplot(2,sessNum,i+sessNum)
+                hold on;
+                plot3([C.volCentr(p(1),1),C.volCentr(p(2),1)],...
+                    [C.volCentr(p(1),2),C.volCentr(p(2),2)],...
+                    [C.volCentr(p(1),3),C.volCentr(p(2),3)],'-o','LineWidth',A_vec(k)*4,'Color',[0 0 0],'MarkerSize',6);
+              %  plot([C.flatCentr(p(1),1),C.flatCentr(p(2),1)],...
+              %      [C.flatCentr(p(1),2),C.flatCentr(p(2),2)],'-o','LineWidth',A_vec(k)*4,'Color',[0 0 0],'MarkerSize',6);
+            end
+            for r=1:length(idx)
+                if size(hemi,2)==1
+                    text(C.volCentr(r,1),C.volCentr(r,2),C.volCentr(r,3),textLabel(r));
+                else
+                    if r<length(idx)/2+1
+                        text(C.volCentr(r,1),C.volCentr(r,2),C.volCentr(r,3),textLabel(r));
+                    else
+                        text(C.volCentr(r,1),C.volCentr(r,2),C.volCentr(r,3),textLabel(r-length(idx)/2));
+                    end
+                end
+            end
+        end
+    case 'TRANSFORM_plotPred'
+        % plot deviation from prediction for ses2-4 based on T in ses1
+        parcelType='Brodmann';
+        hemi=1; % 1, 2 or [1,2]
+        seqType='all';
+        betaChoice='multi';
+        metric='corr'; % corr or cos
+        textLabel=regname;
+        vararginoptions(varargin,{'parcelType','hemi','seqType','betaChoice','metric'});
+        
+        
+        load(fullfile(transformDir,sprintf('predict_%sMatrix_%s_%sSeq_%sPW',metric,parcelType,seqType,betaChoice)));
+        C = load(fullfile(regDir,sprintf('region_%s_centroids_group',parcelType))); % load coordinates
+        D = eval(sprintf('D_group_%s',metric)); % change the input name to D
+        sessNum=size(D,2);
+        if size(hemi,2)==1
+            idx=find(C.regSide==hemi)';
+            C=getrow(C,C.regSide==hemi);
+            for i=1:sessNum
+                D{i}=D{i}(idx,idx,:);
+            end
+        end
+        
+        % all pairs of connections
+        pIdx=indicatorMatrix('allpairs',[1:length(idx)]);
+        figure
+        for i=1:sessNum
+            D_vec=rsa_vectorizeRDM(D{i});
+            subplot(2,sessNum,i)
+            imagesc(D{i});
+            caxis([0 0.9]);
+            title(sprintf('session-%d',i+1))
+            for k=1:size(pIdx,1)
+                p=find(pIdx(k,:));
+                subplot(2,sessNum,i+sessNum)
+                hold on;
+                plot3([C.volCentr(p(1),1),C.volCentr(p(2),1)],...
+                    [C.volCentr(p(1),2),C.volCentr(p(2),2)],...
+                    [C.volCentr(p(1),3),C.volCentr(p(2),3)],'-o','LineWidth',D_vec(k)*3,'Color',[0 0 0],'MarkerSize',6);
+            end
+            for r=1:length(idx)
+                text(C.volCentr(r,1),C.volCentr(r,2),C.volCentr(r,3),textLabel(r));
+            end
+        end
+    case 'TRANSFORM_plotFeatures'
+        % plot alpha
+        parcelType='Brodmann';
+        hemi=1; % 1, 2 or [1,2]
+        seqType='all';
+        betaChoice='multi';
+        sessN=[1:4];
+        textLabel=regname;
+        vararginoptions(varargin,{'parcelType','hemi','seqType'});
+        
+        T=load(fullfile(transformDir,sprintf('transform_Features_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)));
+        T=getrow(T,ismember(T.regSide1,hemi)&ismember(T.regSide2,hemi));
+        % all pairs of connections
+        regIdx=unique([unique(T.reg1);unique(T.reg2)]);
+        pIdx=indicatorMatrix('allpairs',regIdx');
+        
+        for k=1:size(pIdx,1)
+            idx=find(pIdx(k,:));
+            S=getrow(T,T.reg1==idx(1)&T.reg2==idx(2));
+            figure
+            % subplot per feature
+            for i=1:max(S.feature)
+                subplot(1,max(S.feature),i);
+                plt.bar(S.sessN,S.cosDist,'subset',S.feature==i);
+                fLabel=S.featureLabel(S.feature==i);
+                if i==1
+                    xlabel('Session'); ylabel('Distance from true G')
+                else
+                    ylabel('');
+                end
+                title(sprintf('reg %d-%d %s pair',idx(1),idx(2),fLabel{1}));
+            end
+        end
+    case 'TRANSFORM_plotTrans'
+        % plot transitions
+        parcelType='Brodmann';
+        seqType='all';
+        betaChoice='multi';
+        vararginoptions(varargin,{'parcelType','seqType','betaChoice'});
+        
+        T = load(fullfile(transformDir,sprintf('transform_sessTrans_cosine_%s_%sSeq_%sPW',parcelType,seqType,betaChoice)));
+        
+        figure
+        plt.bar(T.reg,1-T.cosDist,'split',T.sessTrans,'subset',T.regSide==1 & T.reg~=6);
+        xlabel('session transition per region');
+        ylabel('similarity');
+
+        
         
     otherwise
         disp('there is no such case.')
@@ -5975,6 +6620,107 @@ function M = pcm_defineSequenceFingerModels_new(Seq,sn)
             M{4}(u,j) = length(placenumb);
         end
     end
+end
+function F = defineFeatures(G1,G2,seqType,Seq,Chunks,sn)
+%  defines feature matrices
+% currently used in estimation of G1 -> G2 transformation
+    numSeq=size(G1,1);
+    % ---------------------------------------
+    % F1 - identity
+    F{1} = eye(numSeq);
+    % ---------------------------------------
+    % F2 - scaling
+    % optimise weight
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{1}*w)*G1*pinv((F{1}*w)'))))),1);
+    F{2} = F{1}*w;
+    % ---------------------------------------
+    % sequence-specific things
+    if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
+        SeqNew = zeros(12,9);
+        SeqNew([1:6],:)=Seq([7:12],:);
+        SeqNew([7:12],:)=Seq([1:6],:);
+        Seq=SeqNew;
+    end
+
+    switch seqType
+        case 'trained'
+            SeqSet = Seq([1:6],:);
+            ChunkSet = Chunks([1:6],:);
+        case 'untrained'
+            SeqSet = Seq([7:12],:);
+            ChunkSet = Chunks([7:12],:);
+            ChunkSet = ChunkSet-7; % 7 unique chunks
+        case 'all'
+            SeqSet = Seq;
+            ChunkSet = Chunks;
+    end
+    % ---------------------------------------
+    % F3: First finger model
+    F{3}(:,:)=zeros(numSeq,5); % first finger
+    for u = 1:numSeq   % 12 seq
+        firstfing = SeqSet(:,1);
+        F{3}(u,firstfing(u)) = 1;
+    end
+    F{3}=F{3}*F{3}';
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{3}*w)*G1*pinv((F{3}*w)'))))),1);
+    F{3}=F{3}*w;
+    % ---------------------------------------
+    % F4: All fingers
+    F{4}(:,:)=zeros(numSeq,5); % all fingers
+    for u = 1:numSeq
+        for j = 1:5                 % 5 fingers
+            placenumb = find(SeqSet(u,:)==j);
+            F{4}(u,j) = length(placenumb);
+        end
+    end
+    F{4}=F{4}*F{4}';
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{4}*w)*G1*pinv((F{4}*w)'))))),1);
+    F{4}=F{4}*w;
+    %---------------------------------------
+    % F5: Finger transitions
+    Trans = [nchoosek([1:5],2); fliplr(nchoosek([1:5],2))];
+    F{5}=zeros(numSeq,size(Trans,1)); % all transitions (no repetition)
+    for k = 1:size(SeqSet,1)    % set of 12 seq
+        for p = 1:size(Trans,1) % all possible transitions
+            if any(ismember(SeqSet(k,1:8),Trans(p,1)))
+                ind = find(ismember(SeqSet(k,1:8),Trans(p,1)));    % find matching digits to first finger in doublet
+                if any(ismember(SeqSet(k,ind+1),Trans(p,2)))       % compare the second finger in doublet
+                    F{5}(k,p) = F{5}(k,p) + sum(ismember(SeqSet(k,ind+1),Trans(p,2)));
+                end
+            end
+        end
+    end
+    tmp=F{5};
+    % remove columns with 0s only
+    tmp(:,~any(tmp,1))=[];
+    F{5}=tmp*tmp';
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{5}*w)*G1*pinv((F{5}*w)'))))),1);
+    F{5}=F{5}*w;
+    %----------------------------------------
+    % F6: Chunks
+    A=zeros(numSeq,max(max(ChunkSet)));
+    for i=1:numSeq
+        idxChunk=ChunkSet(i,:);
+        A(i,idxChunk)=1;
+    end
+    F{6} = A*A';
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{6}*w)*G1*pinv((F{6}*w)'))))),1);
+    F{6}=F{6}*w;
+    % --------------------------------------
+    % F7: Sequence + seqType
+    A=zeros(numSeq,numSeq);
+    for i=1:numSeq
+        A(i,i)=1;
+    end;
+    if strcmp(seqType,'all')
+        A(:,i+1)=[ones(6,1);zeros(6,1)];
+        A(:,i+2)=[zeros(6,1);ones(6,1)];
+    else
+        A(:,i+1)=[ones(6,1)];
+    end
+    F{7} = A*A';
+    w = fminsearch(@(w) abs(sum(sum(G2-(pinv(F{7}*w)*G1*pinv((F{7}*w)'))))),1);
+    F{7}=F{7}*w;
 end
 
 function T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm)

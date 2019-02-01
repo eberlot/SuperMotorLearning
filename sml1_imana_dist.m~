@@ -1,8 +1,8 @@
 function varargout=sml1_imana_dist(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-%baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 betaDir         =[baseDir '/betas'];
 behavDir        =[baseDir '/behavioral_data/data'];
 clusterDir      =[baseDir '/cluster'];
@@ -133,7 +133,7 @@ ms=12;
 stySeq=style.custom({'red','blue'},'markersize',ms);
 stySeqType=style.custom(gray,'markersize',12);
 
-stySess=style.custom({gray,lightgray,silver,black},'markersize',ms);
+stySess=style.custom({black,gray,lightgray,blue},'markersize',ms);
 styTrained_sess=style.custom({red,mediumred,lightred},'markersize',ms);
 styUntrained_sess=style.custom({blue,mediumblue,lightblue},'markersize',ms);
 
@@ -1435,11 +1435,12 @@ switch(what)
 
         % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
         % (1) Set parameters
-        sn  = [4:9,11:25];
+        sn  = [4:9,11:31];
         roi = [1:8];
-        sessN=1;
+        sessN=[1:4];
         betaChoice='multiPW'; % multiPW, uniPW, raw
-        vararginoptions(varargin,{'sn','roi','sessN','betaChoice'});
+        parcelType='Brodmann'; 
+        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
         
         numRun=numruns_task_sess;
         numCond=numel(num_seq);
@@ -1448,7 +1449,7 @@ switch(what)
         RR=[];
         %========%
         for ss=sessN
-            T = load(fullfile(regDir,sprintf('betas_Brodmann_sess%d_glm3',ss))); % loads in struct 'T'
+            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
             for h=1:2
                 for r=roi
                     for s=sn
@@ -1474,53 +1475,125 @@ switch(what)
                         [R.r2_cross_rm, R.r_cross_rm]   = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',1); % correlation of patterns
                         [R.r2_cross, R.r_cross]         = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',0);
                         
-                        R.sn =s;
-                        R.sessN=ss;
-                        R.regType=r;
-                        R.hemi=h;
+                        R.sn        = s;
+                        R.sessN     = ss;
+                        R.region    = (h-1)*max(roi)+r;
+                        R.regType   = r;
+                        R.regSide   = h;
                         
                         RR=addstruct(RR,R);
                     end
+                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
                 end
             end
         end
         
         %save the structure
-        save(fullfile(QCDir,sprintf('QualityControl_%sBetas',betaChoice)),'-struct','RR');
+        save(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
     case 'ROI_PLOT_pattern_consist' 
        var = 'cnr'; % cnr, r2_rm, r2, r2_cross, r_cross, r2_cross_rm, r_cross_rm
        betaChoice = 'multiPW';
        roi=[1:8];
-       vararginoptions(varargin,{'var','betaChoice','roi'});
+       parcelType='Brodmann';
+       vararginoptions(varargin,{'var','betaChoice','roi','parcelType'});
        
-       T = load(fullfile(QCDir,sprintf('QualityControl_%sBetas',betaChoice)));
-       
-       % split by hemisphere
+       T = load(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)));
+          
        figure
-       subplot(3,4,[1:4]);
-       plt.bar(T.regType,T.(var),'split',T.hemi,'leg',{'Contra','Ipsi'},'leglocation','northeast');
-       ylabel(sprintf('%s %s',var,betaChoice));
-       xlabel('ROIs');
-       
-       for rr=roi
-           subplot(3,4,rr+4)
-           plt.hist(T.(var),'subset',T.regType==rr,'split',T.hemi,'leg',{'contra','ipsi'},'leglocation','north');
-           title(sprintf('%s',regname_cortex{rr}));
-       end
-       
-       % split by session
-     %  figure
-     %  subplot(3,4,[1:4]);
-     %  plt.bar(T.regType,T.(var),'subset',T.hemi==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},'leglocation','northeast');
-     %  ylabel(sprintf('%s %s',var,betaChoice));
-     %  xlabel('ROIs');
-       
-       for rr=roi
-           subplot(3,4,rr+4)
-           plt.hist(T.(var),'subset',T.hemi==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},'leglocation','north');
-           title(sprintf('%s',regname_cortex{rr}));
-       end
-    
+       subplot(211)
+       plt.bar(T.regType,T.r_cross,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
+           'leglocation','northeast','style',stySess);
+       title('crossval-correlation');
+       ylabel('r');
+       subplot(212)
+       plt.bar(T.regType,T.r_cross_rm,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
+           'leglocation','northeast','style',stySess);
+       title('crossval-correlation mean removed');
+       ylabel('r');
+    case 'ROI_runwiseDrift'
+        % pattern consistency for specified roi
+        % Pattern consistency is a measure of the proportion of explained
+        % beta variance across runs within conditions. 
+        % 
+
+        % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
+        % (1) Set parameters
+        sn  = [4:9,11:31];
+        roi = [1:8];
+        sessN=[1:4];
+        betaChoice='multiPW'; % multiPW, uniPW, raw
+        parcelType='Brodmann'; 
+        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
+        
+        numRun=numruns_task_sess;
+        numCond=numel(num_seq);
+        % make vectors for pattern consistency func
+        partVec = kron([1:numRun]',ones(numCond,1));
+        %condVec = kron(ones(numRun,1),[1:numCond]');
+        RR=[];
+        for ss=sessN
+            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
+            for h=1:2
+                for r=roi
+                    for s=sn
+                        S = getrow(T,(T.SN==s & T.regType==r & T.regSide==h));
+                        switch(betaChoice)
+                            case 'raw'
+                                beta  = S.betaRAW{1};
+                            case 'uniPW'
+                                beta  = S.betaUW{1};
+                            case 'multiPW'
+                                beta  = S.betaW{1};
+                        end
+                        for r1=1:8
+                            for r2=r1:8
+                                beta1       = beta(partVec==r1,:);
+                                beta2       = beta(partVec==r2,:);
+                                R.corr      = mean(diag(corr(beta1',beta2')));
+                                beta1       = bsxfun(@minus,beta1,mean(beta1,1));
+                                beta2       = bsxfun(@minus,beta2,mean(beta2,1));
+                                R.corr_rm   = mean(diag(corr(beta1',beta2')));
+                                R.run1      = r1;
+                                R.run2      = r2;
+                                R.sn        = s;
+                                R.sessN     = ss;
+                                R.region    = (h-1)*max(roi)+r;
+                                R.regType   = r;
+                                R.regSide   = h;
+                                RR=addstruct(RR,R);
+                            end
+                        end
+                    end
+                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
+                end
+            end
+        end
+        %save the structure
+        save(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
+    case 'PLOT_runwiseDrift'
+        betaChoice='multiPW'; % multiPW, uniPW, raw
+        parcelType='Brodmann'; 
+        roi=[1:8];
+        hemi=1;
+        var =
+        vararginoptions(varargin,{'roi','betaChoice','parcelType','hemi'});
+        T = load(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)));
+        
+        figure
+        for r=1:numel(roi)
+            subplot(numel(roi),1,r)
+            plt.line(T.run1,T.corr,'subset',T.regType==roi(r) & T.regSide==hemi & T.run2==T.run1+1,'split',T.sessN,...
+                'style',stySess);
+            title(regname_cortex{roi(r)});
+        end
+        
+        figure
+        for r=1:numel(roi)
+            subplot(numel(roi),1,r)
+            plt.line(T.run2,T.corr,'subset',T.regType==roi(r) & T.regSide==hemi & T.run1==1 & T.run2~=1,'split',T.sessN,...
+                'style',stySess);
+            title(regname_cortex{roi(r)});
+        end
     case 'SURF_flatmap_rgb'
         sessN=[1:4];
         smooth=0;
@@ -1910,15 +1983,15 @@ switch(what)
         end
     
     case 'CALC_dimensions'
-        roi=3;
+        roi=[1:16];
         sn=[4:9,11:31];
-        sessN=1;
+        sessN=[1:4];
         parcelType='Brodmann';
         vararginoptions(varargin,{'roi','sessN','parcelType'});
        
         Dim=[];
         for ss=sessN
-            T=load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
             for r=roi
                 for s=sn
                     Tt=getrow(T,T.region==r & T.SN==s);
@@ -1944,26 +2017,28 @@ switch(what)
                         N.indDim=[1:6]';
                         N.sn=ones(size(N.corr))*s;
                         N.roi=ones(size(N.corr))*r;
+                        N.regType=ones(size(N.corr))*Tt.regType;
+                        N.regSide=ones(size(N.corr))*Tt.regSide;
                         N.sessN=ones(size(N.corr))*ss;
                         N.seqType=ones(size(N.corr))*st;
                         
                         
                         Dim=addstruct(Dim,N);
                     end
-                    fprintf('Done dimensionality: sess-%d %s %s \n',ss,regname{r},subj_name{s});
                 end
             end
+            fprintf('Done sess-%d \n',ss);
         end
 
         % save dimensionality
-        save(fullfile(distPscDir,fprintf('Dimensionality_%s.mat',parcelType)),'-struct','Dim');
+        save(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)),'-struct','Dim');
     case 'PLOT_dimensions'
         roi=3;
         parcelType='Brodmann';
         seqLabel={'trained','untrained'};
         vararginoptions(varargin,{'roi','parcelType'});
         
-        D=load(fullfile(distPscDir,fprintf('Dimensionality_%s.mat',parcelType)));
+        D=load(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)));
         D=getrow(D,D.roi==roi);
         figure
         for st=1:2
@@ -2254,13 +2329,16 @@ switch(what)
     case 'STATS_dist'
         roi=[1:8];
         sessN=[1:4];
-        vararginoptions(varargin,{'roi','sessN'});
+        parcelType='Brodmann';
+        hemi=1;
+        vararginoptions(varargin,{'roi','sessN','parcelType','hemi'});
         
-        D=load(fullfile(distPscDir,'dist_ROI.mat'));
+        D=load(fullfile(distPscDir,sprintf('dist_%s_ROI.mat',parcelType)));
+        D=getrow(D,D.regSide==hemi);
         T.dist=[D.dist_train; D.dist_untrain];
         T.seqType=[ones(size(D.dist_train));ones(size(D.dist_train))*2];
         T.sn=[D.sn;D.sn];
-        T.roi=[D.roi;D.roi];
+        T.roi=[D.regType;D.regType];
         T.sessN=[D.sessN;D.sessN];
         
         % ANOVA - session x seqType - per region
@@ -2302,9 +2380,9 @@ switch(what)
             end
         end    
         
-    case 'CALC_corrdist'
+    case 'CALC_corrDist'
         reg = [1:8];
-        sn  = [1:9,11:18];
+        sn  = [4:9,11:31];
         sessN = [1:4];
         parcelType='Brodmann';
         subtract_mean=0; % do NOT subtract mean - it distorts the pattern
@@ -2313,12 +2391,12 @@ switch(what)
         STAll= [];
         
         for  ss = sessN
-            D   = load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
             for roi = reg;
                 for h=1:2
                     for s = sn;
                         SI = load(fullfile(glmSessDir{ss}, subj_name{s}, 'SPM_info.mat'));   % load subject's trial structure
-                        t   = getrow(D,D.region==roi & D.SN==s);
+                        t   = getrow(D,D.regType==roi & D.regSide==h & D.SN==s);
                         data = t.betaW{1}(1:size(SI.SN,1),:);
                         numRuns    = 1:numruns_task_sess;
                         numConds   = num_seq;
@@ -2351,49 +2429,60 @@ switch(what)
                         ST.corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
                         ST.sessN        = ss;
                         ST.roi          = roi;
-                        ST.regType      = repmat(t.regType,2,1);
-                        ST.regSide      = repmat(t.regSide,2,1);
-                        ST.sn=s;
+                        ST.regType      = t.regType;
+                        ST.regSide      = t.regSide;
+                        ST.sn           = s;
                         STAll=addstruct(STAll,ST);
                     end
-                end
+                end 
             end
+            fprintf('Done sess%d.\n',ss);
         end
-        save(fullfile(distPscDir,'corrDist_ROI.mat'),'-struct','SAll');
-        save(fullfile(distPscDir,'corrDist_seqType_ROI.mat'),'-struct','STAll');
+        save(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)),'-struct','SAll');
+        save(fullfile(distPscDir,sprintf('corrDist_seqType_%s_ROI.mat',parcelType)),'-struct','STAll');
     case 'PLOT_corrDist'
         roi=[1:8];
         sessN=[1:4];
+        parcelType='Brodmann';
+        hemi=1;
+        vararginoptions(varargin,{'roi','sessN','parcelType','hemi'});
         
-        vararginoptions(varargin,{'roi','sessN'});
-        
-        T=load(fullfile(distPscDir,'corrDist_ROI.mat'));
-        
+        T=load(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)));
+        switch parcelType
+            case 'Brodmann'
+                regLab = regname_cortex;
+            case 'BG-striatum'
+                regLab = regname_BG;
+        end
         figure
         indx=1;
         for r=roi
-            subplot(1,numel(roi),indx)
-            if numel(sessN)==4
-                plt.line([T.sessN>3 T.sessN],T.corrDist,'split',T.seqType,'subset',T.roi==r,'leg',{'trained','untrained'},'leglocation','north','style',stySeq);
-            elseif numel(sessN)==3
-                plt.line(T.sessN,T.corrDist,'split',T.seqType,'subset',T.roi==r&T.sessN<4,'leg',{'trained','untrained'},'leglocation','north','style',stySeq);
+            for h=hemi
+                subplot(1,numel(roi),indx)
+                if numel(sessN)==4
+                    plt.line([T.sessN>3 T.sessN],T.corrDist,'split',T.seqType,'subset',T.regType==r & T.regSide==hemi,'leg',{'trained','untrained'},'leglocation','north','style',stySeq);
+                elseif numel(sessN)==3
+                    plt.line(T.sessN,T.corrDist,'split',T.seqType,'subset',T.regType==r & T.regSide==hemi&T.sessN<4,'leg',{'trained','untrained'},'leglocation','north','style',stySeq);
+                end
+                drawline(0,'dir','horz');
+                plt.match('y');
+                title(sprintf('%s',regLab{r}));
+                if r==1
+                    ylabel('Correlation distance');
+                    xlabel('Session');
+                else
+                    ylabel('');
+                end
+                indx=indx+1;
             end
-            drawline(0,'dir','horz');
-            plt.match('y');
-            title(sprintf('%s',regname{r}));
-            if r==1
-                ylabel('Correlation distance');
-                xlabel('Session');
-            else
-                ylabel('');
-            end
-        indx=indx+1;    
         end
     case 'PLOT_corrDist_sessions'
         sessN=[1:3];
         regExcl=6;
         seqType='trained';
-        vararginoptions(varargin,{'sessN','regExcl','seqType'});
+        parcelType='Brodmann';
+        hemi=1;
+        vararginoptions(varargin,{'sessN','regExcl','seqType','parcelType','hemi'});
         
         sessLegend={'sess1','sess2','sess3','sess4'};
         
@@ -2404,14 +2493,14 @@ switch(what)
                 st=2;
         end
         
-        T=load(fullfile(distPscDir,'corrDist_ROI.mat'));
+        T=load(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)));
         
-        T=getrow(T,~ismember(T.roi,regExcl)&ismember(T.sessN,sessN)); % exclude V12
+        T=getrow(T,~ismember(T.regType,regExcl)&ismember(T.sessN,sessN)&T.regSide==hemi); % exclude V12
 
         % list in terms of anterior -> posterior
         reg=[3 4 5 1 2 7 8];
-        T.reg=T.roi;
-        for i=1:length(T.roi) 
+        T.reg=T.regType;
+        for i=1:length(T.regType) 
             T.reg(i,:)=find(T.reg(i,:)==reg);
         end
         
@@ -2425,14 +2514,16 @@ switch(what)
     case 'PLOT_corrDist_sessions_both'
         sessN=[1:3];
         regExcl=6;
+        parcelType='Brodmann';
         seqType={'trained','untrained'};
-        vararginoptions(varargin,{'sessN','regExcl','seqType'});
+        hemi=1;
+        vararginoptions(varargin,{'sessN','regExcl','seqType','parcelType','hemi'});
         
         sessLegend={'sess1','sess2','sess3','sess4'};
         
-        T=load(fullfile(distPscDir,'corrDist_ROI.mat'));
+        T=load(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)));
         
-        T=getrow(T,~ismember(T.roi,regExcl)&ismember(T.sessN,sessN)); % exclude V12
+        T=getrow(T,~ismember(T.regType,regExcl)&ismember(T.sessN,sessN)&T.regSide==hemi); % exclude V12
 
         % list in terms of anterior -> posterior
         reg=[3 4 5 1 2 7 8];
@@ -2458,22 +2549,24 @@ switch(what)
             
         end
     case 'PLOT_corrDist_seqType'
-      roi=[1:8];
+        roi=[1:8];
         sessN=[1:4];
+        parcelType='Brodmann';
+        hemi=1;
         
-        vararginoptions(varargin,{'roi','sessN'});
+        vararginoptions(varargin,{'roi','sessN','parcelType','hemi'});
         
-        D=load(fullfile(distPscDir,'corrDist_seqType_ROI.mat'));
+        D=load(fullfile(distPscDir,sprintf('corrDist_seqType_%s_ROI.mat',parcelType)));
         figure
         indx=1;
         for r=roi
             subplot(1,numel(roi),indx)
             if numel(sessN)==4
-                plt.line([D.sessN>3 D.sessN],D.corr_seqType,'subset',D.roi==r,'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
+                plt.line([D.sessN>3 D.sessN],D.corr_seqType,'subset',D.regType==r&D.regSide==hemi,'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
             elseif numel(sessN)==3
-                plt.line(D.sessN,D.corr_seqType,'subset',D.roi==r&D.sessN<4,'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
+                plt.line(D.sessN,D.corr_seqType,'subset',D.regType==r&D.regSide==hemi&D.sessN<4,'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
             elseif numel(sessN)==2
-                plt.line(D.sessN,D.corr_seqType,'subset',D.roi==r&(D.sessN==1|D.sessN==4),'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
+                plt.line(D.sessN,D.corr_seqType,'subset',D.regType==r&D.regSide==hemi&(D.sessN==1|D.sessN==4),'leg',{'trained','untrained'},'leglocation','north','style',stySeqType);
             end
             drawline(0,'dir','horz');
             plt.match('y');
@@ -2512,21 +2605,23 @@ switch(what)
     case 'STATS_corrDist'
         roi=[1:8];
         sessN=[1:4];
-        vararginoptions(varargin,{'roi','sessN'});
+        parcelType='Brodmann';
+        hemi=1;
+        vararginoptions(varargin,{'roi','sessN','parcelType','hemi'});
         
-        T=load(fullfile(distPscDir,'corrdist_ROI.mat'));
+        T=load(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)));
 
         % ANOVA - session x seqType - per region
         for r=roi
             fprintf('\n Dist in %s \n',regname{r});
-            anovaMixed(T.corrDist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.roi==r&T.sessN<4);
+            anovaMixed(T.corrDist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.regType==r&T.regSide==hemi);
             %anovaMixed(T.corrDist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.roi==r&(T.sessN==1|T.sessN==4));
         end
         
         for r=roi
             for ss=sessN
                 fprintf('\n post-hoc t-test on the effect of seqType in sess %d in %s \n',ss,regname{r});
-                ttestDirect(T.corrDist,[T.seqType T.sn],2,'paired','subset',T.roi==r&T.sessN==ss);
+                ttestDirect(T.corrDist,[T.seqType T.sn],2,'paired','subset',T.regType==r&T.sessN==ss&T.regSide==hemi);
             end
         end
     case 'STATS_corrDist_seqType'

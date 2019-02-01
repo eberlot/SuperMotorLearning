@@ -2584,9 +2584,9 @@ loc_AC     = {[-112 -165 -176],...
                 C.flatCentr = mean(R{i}.flatcoord,1);
              end
              C.volCentr  = mean(R{i}.data,1);
-             C.roi       = i;
-             C.hemi      = (i>size(R,2)/2)+1;
-             C.regType   = i-((C.hemi-1)*size(R,2)/2);
+             C.region    = i;
+             C.regSide   = (i>size(R,2)/2)+1;
+             C.regType   = i-((C.regSide-1)*size(R,2)/2);
              C.sn        = s;
              CC = addstruct(CC,C);
          end
@@ -2594,18 +2594,19 @@ loc_AC     = {[-112 -165 -176],...
      end
      if strcmp(parcelType,'Brodmann')
          CC.flatCentr(:,3)=[];
-         G.flatCentr(:,1) = nanmean(pivottable(CC.sn,CC.roi,CC.flatCentr(:,1),'nanmean'),1)';
-         G.flatCentr(:,2) = nanmean(pivottable(CC.sn,CC.roi,CC.flatCentr(:,2),'nanmean'),1)';
+         G.flatCentr(:,1) = nanmean(pivottable(CC.sn,CC.region,CC.flatCentr(:,1),'nanmean'),1)';
+         G.flatCentr(:,2) = nanmean(pivottable(CC.sn,CC.region,CC.flatCentr(:,2),'nanmean'),1)';
      end
-     G.volCentr(:,1)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,1),'nanmean'),1)';
-     G.volCentr(:,2)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,2),'nanmean'),1)';
-     G.volCentr(:,2)  = nanmean(pivottable(CC.sn,CC.roi,CC.volCentr(:,3),'nanmean'),1)';
-     G.roi = [1:size(R,2)]';
-     G.hemi = (G.roi>size(R,2)/2)+1;
-     G.regType = G.roi-((G.hemi-1)*size(R,2)/2);
+     G.volCentr(:,1)  = nanmean(pivottable(CC.sn,CC.region,CC.volCentr(:,1),'nanmean'),1)';
+     G.volCentr(:,2)  = nanmean(pivottable(CC.sn,CC.region,CC.volCentr(:,2),'nanmean'),1)';
+     G.volCentr(:,3)  = nanmean(pivottable(CC.sn,CC.region,CC.volCentr(:,3),'nanmean'),1)';
+     G.region  = [1:size(R,2)]';
+     G.regSide = (G.region>size(R,2)/2)+1;
+     G.regType = G.region-((G.regSide-1)*size(R,2)/2);
 
      save(fullfile(regDir,sprintf('region_%s_centroids_individSubj',parcelType)),'-struct','CC');
      save(fullfile(regDir,sprintf('region_%s_centroids_group',parcelType)),'-struct','G');
+     writetable(struct2table(G), fullfile(regDir,sprintf('region_%s_centroids_group',parcelType)));
      
     case 'ROI_timeseries'                                                   % STEP 5.2   :  Extract onsets and events/trials - hrf
         % to check the model quality of the glm
@@ -3112,7 +3113,8 @@ loc_AC     = {[-112 -165 -176],...
     
     case 'job1'
       %  sml1_imana_prep('ROI_define','sn',[29,31],'parcelType','Brodmann');
-        sml1_imana_prep('GLM_estimate_RepSup','sessN',[1:4],'sn',[26:31]);
+        sml1_imana_BG_new('ROI_define_BG','sn',[29,31],'regType','BG-striatum');
+        sml1_imana_BG_new('ROI_define_thalamus','sn',[29,31]);
     case 'job2'
         sml1_imana_prep('GLM_estimate_RepSup','sessN',3,'sn',[4:9,11:25]);
     case 'job3'

@@ -1982,8 +1982,10 @@ switch what
                 OtherHandTest_G2.seqNumb(p:p+1,:) = RandomSeqNumb(X(l)-18);
                 OtherHandTest_G2.seqType(p:p+1,:) = 9;  % random chunks
              end
+            
             p = p+2;
-            l = l+1;      
+            l = l+1;
+            
         end
         
         OtherHandTest_G1.isScan = zeros(length(Trials),1);
@@ -2003,15 +2005,12 @@ switch what
         B1 = 1;
         B2 = trial_run;
         
-        dir1=fullfile(baseDir,sprintf('RetentionTest/%s',subjName1));
-        dir2=fullfile(baseDir,sprintf('RetentionTest/%s',subjName2));
-        dircheck(dir1);
-        dircheck(dir2);
         for i = 1:runs
-            dsave(fullfile(dir1,['sml_OHT_G1_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(OtherHandTest_G1,B1:B2),OrderFields));
-            dsave(fullfile(dir2,['sml_OHT_G2_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(OtherHandTest_G2,B1:B2),OrderFields));
+            dsave(fullfile(baseDir,['RetentionTest/',subjName1,'sml_OHT_G1_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(OtherHandTest_G1,B1:B2),OrderFields));
+            dsave(fullfile(baseDir,['RetentionTest/',subjN'sml_OHT_G2_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(OtherHandTest_G2,B1:B2),OrderFields));
             B1 = B1+trial_run;
-            B2 = B2+trial_run; 
+            B2 = B2+trial_run;
+            
         end
 
     case 'SeqTest_Retention'
@@ -2024,8 +2023,7 @@ switch what
         % per session - 4 rep per sequence (2 doubles FoSEx)
         
         test_sess = varargin{1};    % which test - session - different stimuli
-        subjName1 = varargin{2};
-        subjName2 = varargin{3};
+        
         runs = 9;
         trial_run = 24;
         
@@ -2152,13 +2150,10 @@ switch what
         
         B1 = 1;
         B2 = trial_run;
-        dir1=fullfile(baseDir,sprintf('RetentionTest/%s',subjName1));
-        dir2=fullfile(baseDir,sprintf('RetentionTest/%s',subjName2));
-        dircheck(dir1);
-        dircheck(dir2);
+        
         for i = 1:runs
-            dsave(fullfile(dir1,['sml_STB_G1_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(SeqTest_G1,B1:B2),OrderFields));
-            dsave(fullfile(dir2,['sml_STB_G2_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(SeqTest_G2,B1:B2),OrderFields));
+            dsave(fullfile(baseDir,['RetentionTest/',subjName1,'sml_STB_G1_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(SeqTest_G1,B1:B2),OrderFields));
+            dsave(fullfile(baseDir,['RetentionTest/',subjName2,'sml_STB_G2_B', num2str((test_sess-1)*runs+i), '.tgt']),orderfields(getrow(SeqTest_G2,B1:B2),OrderFields));
             B1 = B1+trial_run;
             B2 = B2+trial_run;
             

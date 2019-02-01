@@ -12,8 +12,19 @@ cd(behDir)
 
 % -------------------------- For plotting ---------------------------------
 stySeq=style.custom({'red','blue'},'markersize',12);
+c1=[39 38 124]/255;
+c2=[140 140 185]/255;
+c3=[249 191 193]/255;
+%styOtherHand= style.custom({'red','blue','green'},'markersize',10,'errorbars','shade');
 
-styOtherHand= style.custom({'red','blue','green'},'markersize',10,'errorbars','shade');
+gray=[80 80 80]/255;
+lightgray=[160 160 160]/255;
+black=[0 0 0]/255;
+
+%styOtherHand= style.custom({c1,c2,c3},'markersize',10,'errorbars','shade');
+
+styOtherHand= style.custom({gray,lightgray,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
+styTest = style.custom({c1,c2});
 
 switch what
     case 'save_subj'  % create .mat structure for each subject from .dat file
@@ -71,7 +82,8 @@ switch what
      
         sty= style.custom({'magenta'},'markersize',12,'errorbars','shade');
         figure
-        plt.line([D.day>6 D.day],D.MT,'subset',D.blockType==6,'style',sty);
+        %plt.line([D.day>6 D.day],D.MT,'subset',D.blockType==6,'style',sty);
+        plt.line(D.day,D.MT,'subset',D.blockType==6,'style',sty);
         ylabel('Movement time (msec)'); xlabel('Days');
         
         figure
@@ -241,9 +253,9 @@ switch what
          save(fullfile(anaDir,'tests_OtherHand_psc.mat'),'-struct','T');
 
     case 'FORM_testRH_group'
-        sn=[4:9,11:31];
+        sn=[4,5,7:9,11:31];
         vararginoptions(varargin,{'sn'});
-        D=load(fullfile(anaDir,'alldata.mat'));
+        D=load(fullfile(anaDir,'alldata_wChunks.mat'));
         
         TT=[];  
         for i=1:length(sn)
@@ -284,7 +296,41 @@ switch what
         ttestDirect(var,[D.seqType D.SN],2,'paired','subset',D.testDay==3 & D.seqType~=4);    
         % test day 4 
         ttestDirect(var,[D.seqType D.SN],2,'paired','subset',D.testDay==4 & D.seqType~=4);
-    
+        
+    case 'PLOT_FoSEx'
+        D=load(fullfile(anaDir,'testsRH.mat'));
+        
+        figure
+        subplot(311)
+        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==1,'style',styTest);
+        ylabel('MT');
+        subplot(312)
+        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==4,'style',styTest);
+        ylabel('MT');
+        subplot(313)
+        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==5,'style',styTest);
+        ylabel('MT');
+        xlabel('Test Day');
+    case 'STATS_FoSEx'
+        D=load(fullfile(anaDir,'testsRH.mat'));
+        
+        var=D.MT; % or D.isError
+        % only trained vs. random, not the chunked ones
+        anovaMixed(var,D.SN,'within',[D.testDay D.FoSEx],{'testDay','FoSEx'},'subset',D.seqType==1);
+        anovaMixed(var,D.SN,'within',[D.testDay D.FoSEx],{'testDay','FoSEx'},'subset',D.seqType==4);
+        anovaMixed(var,D.SN,'within',[D.testDay D.FoSEx],{'testDay','FoSEx'},'subset',D.seqType==5);
+
+        % follow-up t-tests per testing day
+
+        % test day 1 
+        ttestDirect(var,[D.FoSEx D.SN],2,'paired','subset',D.testDay==1 & D.seqType==4);         % trained vs. random
+        % test day 2 
+        ttestDirect(var,[D.FoSEx D.SN],2,'paired','subset',D.testDay==2 & D.seqType==4);
+        % test day 3 
+        ttestDirect(var,[D.FoSEx D.SN],2,'paired','subset',D.testDay==3 & D.seqType==4);    
+        % test day 4 
+        ttestDirect(var,[D.FoSEx D.SN],2,'paired','subset',D.testDay==4 & D.seqType==4);
+
     case 'FORM_OtherHand'
         sn=[4:9,11:31];
         vararginoptions(varargin,{'sn'});
@@ -329,8 +375,16 @@ switch what
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
         
         var=D.MT; % or D.isError
-        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1);
-        
+        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1& D.isError~=1);
+        % extrinsic vs. intrinsic
+        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1 & D.OH_seqIdx<3 & D.isError~=1);
+        % intrinsic vs. random
+        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1 & D.OH_seqIdx~=2 & D.isError~=1);
+        % extrinsic vs. random
+        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1 & D.OH_seqIdx~=1 & D.isError~=1);
+        % extrinsic vs. intrinsic test days 2 and 4    
+        anovaMixed(var,D.SN,'within',[D.testDay D.OH_seqIdx],{'testDay','seqType'},'subset',D.testDay>1 & D.testDay~=3 & D.OH_seqIdx<3 & D.isError~=1);
+
         % follow-up ANOVAs & t-tests per testing day
         keyboard;
         % test day 1 pre-test -> only random
@@ -355,6 +409,27 @@ switch what
         ttestDirect(var,[D.OH_seqIdx D.SN],2,'paired','subset',D.testDay==5 & D.OH_seqIdx~=1&D.isError~=1);         % extr vs. random
         ttestDirect(var,[D.OH_seqIdx D.SN],2,'paired','subset',D.testDay==5 & D.OH_seqIdx~=3&D.isError~=1);         % intr vs. extr
     
+    case 'PLOT_OtherHand_interIndivid'
+        D=load(fullfile(anaDir,'tests_OtherHand.mat'));
+        
+        figure
+        for i=2:5 % each test-day
+            [MT,subj]   = pivottable(D.SN,D.OH_seqIdx,D.MT,'nanmean','subset',D.testDay==i);
+            subplot(1,4,i-1)
+            plt.scatter(MT(:,1),MT(:,2),'label',(1:27));
+            hold on;
+            ax = xlim;
+            ay = ylim;
+            xlim([min([ax(1) ay(1)]), max([ax(2) ay(2)])]);
+            ylim([min([ax(1) ay(1)]), max([ax(2) ay(2)])]);
+            xlabel('Intrinsic');
+            ylabel('Extrinsic');
+            title(sprintf('Test day %d',i-1));
+            refline(1,0);
+            ind = MT(:,1)./MT(:,2);
+            cIE=corr(ind,MT(:,3))
+        end
+
     case 'FORM_OtherHand_psc'
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
         
@@ -409,7 +484,7 @@ switch what
         end
          
         figure
-        plt.bar(T.testDay,T.MT_subtract,'split',T.seqIdx,'style',styOtherHand,'leg',{'Intrinsic','Extrinsic','Random'});
+        plt.bar(T.testDay,T.MT_subtract,'split',T.seqIdx,'subset',T.testDay>1,'style',styOtherHand,'leg',{'Intrinsic','Extrinsic','Random'});
         drawline(0,'dir','horz');
         xlabel('Test days'); ylabel('Between subsequent session learning (msec)'); 
         
@@ -428,11 +503,139 @@ switch what
         ttestDirect(T.MT_subtract,[T.seqIdx T.SN],2,'paired','subset',T.testDay==4 & T.seqIdx~=1);         % extr vs. random
         ttestDirect(T.MT_subtract,[T.seqIdx T.SN],2,'paired','subset',T.testDay==4 & T.seqIdx~=3);         % intr vs. extr
          
-    case 'BEH_ipi'
+    case 'SAVE_memoryTests'
+        vararginoptions(varargin,{'sn','sessN'});
+       
+        MM=[];
+        for s=sn
+            for ss=sessN
+                file=fopen(fullfile(memoryDir,sprintf('%s_sess%d.txt',subj_name{s},ss)));
+                datacell=textscan(file,'%f%f%f%f','HeaderLines',1,'CollectOutput',1);
+                S_file=datacell{1};
+                M.sn=[s;s];
+                M.sessN=[ss;ss];
+                group=rem(s,2);
+                if group==0
+                    group=2;
+                end
+                M.group=[group;group];
+                M.seqType=[1;2];
+                M.recall=S_file(:,1);
+                M.recog_d=S_file(:,2);
+                M.recog_bias=S_file(:,3);
+                MM=addstruct(MM,M);
+            end
+        end
+        keyboard;
+        save(fullfile(memoryDir,'MemoryTests.mat'),'-struct','MM');
+    case 'PLOT_memory'
+        M=load(fullfile(memoryDir,'MemoryTests.mat'));
+        
+        figure
+        subplot(1,3,1)
+        lineplot([M.sessN>3 M.sessN],M.recall,'split',M.seqType,'style_thickline','plotfcn','nanmean');
+        title('Recall'); xlabel('Session'); ylabel('Proportion of correct recall');
+        subplot(1,3,2)
+        lineplot([M.sessN>3 M.sessN],M.recog_d,'split',M.seqType,'style_thickline','plotfcn','nanmean');
+        title('Recognition - d prime');  ylabel('D prime');
+        subplot(1,3,3)
+        lineplot([M.sessN>3 M.sessN],M.recog_bias,'split',M.seqType,'style_thickline','plotfcn','nanmean','leg',{'trained','untrained'});
+        title('Recognition - bias');  ylabel('Bias');  
+   
+    case 'CALC_chunks'
+        sn=[4:31];
+        vararginoptions(varargin,{'sn'});
+        D=load(fullfile(anaDir,'alldata.mat'));
+        TT=[];
+        for i=1:8
+            t=eval(sprintf('D.pressTime%d',i))-eval(sprintf('D.pressTime%d',i-1));
+            var = sprintf('IPI_%d',i);
+            D.(var)=t;
+        end
+        % calculate within / between-chunk
+        D.withinChunk1 = nanmean([D.IPI_1 D.IPI_2],2);
+        D.withinChunk2 = nanmean([D.IPI_4 D.IPI_5],2);
+        D.withinChunk3 = nanmean([D.IPI_7 D.IPI_8],2);
+        D.betweenChunk1 = D.IPI_3;
+        D.betweenChunk2 = D.IPI_6;
+        D.withinChunk = nanmean([D.withinChunk1 D.withinChunk2 D.withinChunk3],2);
+        D.betweenChunk = nanmean([D.betweenChunk1 D.betweenChunk2],2);
+        % save the new structure
+        save(fullfile(anaDir,'alldata_wChunks'),'-struct','D');
+    case 'ADD_scanDay'
+        sn=[4:9,11:31];
+        D=load(fullfile(anaDir,'alldata_wChunks'));
+        TT=[];
+        for s=sn
+            T=getrow(D,D.SN==s);
+            % add field
+            T.scanDay = zeros(size(T.SN));
+            % find the actual days
+            t = unique(T.day(ismember(T.blockType,[3,4,9])));
+            % replace with 4 scanDays
+            for i=1:4
+            %    T.scanDay(T.day==t(i))=i;
+                T.scanDay(T.day==t(i)&ismember(T.blockType,[3,4,9]))=i;
+            end
+            TT=addstruct(TT,T);
+        end
+        % save the new structure with scanDays added
+        save(fullfile(anaDir,'alldata_wChunks'),'-struct','TT');
+    case 'PLOT_chunks_learning'
+        D=load(fullfile(anaDir,'alldata_wChunks'));
+        figure
+        sW=style.custom({'blue'},'markersize',12);
+        sB=style.custom({'red'},'markersize',12);
+        plt.line(D.day,D.withinChunk,'subset',D.blockType==6,'style',sW);
+        hold on;        
+        plt.line(D.day,D.betweenChunk,'subset',D.blockType==6,'style',sB);
+        xlabel('Day');
+        ylabel('Movement time');
+    case 'PLOT_chunks_testDays'
+        D=load(fullfile(anaDir,'testsRH'));
+        
+        T.chunkTime = [D.withinChunk; D.betweenChunk];
+        T.chunkType = [ones(size(D.withinChunk));ones(size(D.withinChunk))*2];
+        T.testDay   = [D.testDay; D.testDay];
+        T.SN        = [D.SN; D.SN];
+        T.seqType   = [D.seqType; D.seqType];
+        [fa ra ca] = pivottable([T.testDay T.SN],[T.chunkType T.seqType],T.chunkTime,'mean');
+        % create a new structure
+        C.chunkTime = fa(:);
+        C.testDay   = repmat(ra(:,1),6,1);
+        C.SN        = repmat(ra(:,2),6,1);
+        C.chunkType = [ones(size(fa,1)*3,1);ones(size(fa,1)*3,1)*2];
+        C.seqType   = repmat([ones(size(fa,1),1);ones(size(fa,1),1)*3;ones(size(fa,1),1)*2],2,1);
+        figure
+        plt.box(C.testDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-chunked','w-random','b-trained','b-chunked','b-random'},'style',styOtherHand,'plotall',0);
+        xlabel('Test day');
+        ylabel('Chunk movement time');
+    case 'PLOT_chunks_scanning'
+        D = load(fullfile(anaDir,'alldata_wChunks'));
+        D = getrow(D,D.scanDay>0 & D.seqType~=3);
+        
+        T.chunkTime = [D.withinChunk; D.betweenChunk];
+        T.chunkType = [ones(size(D.withinChunk));ones(size(D.withinChunk))*2];
+        T.scanDay   = [D.scanDay; D.scanDay];
+        T.SN        = [D.SN; D.SN];
+        T.seqType   = [D.seqType; D.seqType];
+        [fa ra ca] = pivottable([T.scanDay T.SN],[T.chunkType T.seqType],T.chunkTime,'mean');
+        % create a new structure
+        C.chunkTime = fa(:);
+        C.scanDay   = repmat(ra(:,1),4,1);
+        C.SN        = repmat(ra(:,2),4,1);
+        C.chunkType = [ones(size(fa,1)*2,1);ones(size(fa,1)*2,1)*2];
+        C.seqType   = repmat([ones(size(fa,1),1);ones(size(fa,1),1)*2],2,1);
+        figure
+        plt.box(C.scanDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-untrained','b-trained','b-untrained'},'style',styOtherHand,'plotall',0);
+        xlabel('Scan day');
+        ylabel('Chunk movement time');
+        keyboard;
+
+    case 'BEH_ipi'pen 
         vararginoptions(varargin,{'sn'});
         
         AllSubj = [];
-        
         for s = sn
             
             D = load(fullfile(anaDir,['sml1_',subj_name{s},'.mat']));
@@ -479,46 +682,8 @@ switch what
 
             
         end
+
     
-    case 'SAVE_memoryTests'
-        vararginoptions(varargin,{'sn','sessN'});
-       
-        MM=[];
-        for s=sn
-            for ss=sessN
-                file=fopen(fullfile(memoryDir,sprintf('%s_sess%d.txt',subj_name{s},ss)));
-                datacell=textscan(file,'%f%f%f%f','HeaderLines',1,'CollectOutput',1);
-                S_file=datacell{1};
-                M.sn=[s;s];
-                M.sessN=[ss;ss];
-                group=rem(s,2);
-                if group==0
-                    group=2;
-                end
-                M.group=[group;group];
-                M.seqType=[1;2];
-                M.recall=S_file(:,1);
-                M.recog_d=S_file(:,2);
-                M.recog_bias=S_file(:,3);
-                MM=addstruct(MM,M);
-            end
-        end
-        keyboard;
-        save(fullfile(memoryDir,'MemoryTests.mat'),'-struct','MM');
-    case 'PLOT_memory'
-        M=load(fullfile(memoryDir,'MemoryTests.mat'));
-        
-        figure
-        subplot(1,3,1)
-        lineplot([M.sessN>3 M.sessN],M.recall,'split',M.seqType,'style_thickline','plotfcn','nanmean');
-        title('Recall'); xlabel('Session'); ylabel('Proportion of correct recall');
-        subplot(1,3,2)
-        lineplot([M.sessN>3 M.sessN],M.recog_d,'split',M.seqType,'style_thickline','plotfcn','nanmean');
-        title('Recognition - d prime');  ylabel('D prime');
-        subplot(1,3,3)
-        lineplot([M.sessN>3 M.sessN],M.recog_bias,'split',M.seqType,'style_thickline','plotfcn','nanmean','leg',{'trained','untrained'});
-        title('Recognition - bias');  ylabel('Bias');
-        
     otherwise 
         fprintf('No such case');
         

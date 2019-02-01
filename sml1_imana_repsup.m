@@ -1,9 +1,11 @@
 function varargout=sml1_imana_repsup(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 betaDir         =[baseDir '/betas'];
-behavDir        =[baseDir '/behavioral_data/data'];            
+behavDir        =[baseDir '/behavioral_data/data'];  
+anaDir          =[baseDir '/behavioral_data/analyze'];          
 imagingDir      =[baseDir '/imaging_data'];                      
 anatomicalDir   =[baseDir '/anatomicals'];       
 caretDir        =[baseDir '/surfaceCaret'];              
@@ -117,7 +119,7 @@ switch(what)
 
 
     case 'BEH_scanner_MT' %----------------------- QUANTIFY BEHAVIOUR IN SCANNER -----------------------
-        sn=[4:9,11:25];
+        sn=[4:9,11:31];
         sessN=[1:4];
         
         vararginoptions(varargin,{'sn','sessN'});
@@ -126,7 +128,7 @@ switch(what)
         
         for ss = sessN
             for s = sn
-                D = dload(fullfile(behavDir,['sml1_',subj_name{s},'.dat']));
+                D = load(fullfile(anaDir,['sml1_',subj_name{s}]));
                 
                 % functional runs in the scanner
                 R = getrow(D,D.ScanSess==ss & (D.blockType==3 | D.blockType==9));
@@ -156,14 +158,6 @@ switch(what)
     case 'PLOT_behScanner'
         
         B = load(fullfile(repSupDir,'beh_scanner.mat'));
-        
-        figure
-        plt.line(B.sessN,B.MT,'split',B.FoSEx,'leg',{'1st','2nd'},'leglocation','northeast'); 
-        xlabel('Session'); ylabel('Movement time');
-        
-        figure
-        plt.line(B.sessN,B.ER,'split',B.FoSEx,'leg',{'1st','2nd'},'leglocation','northeast'); 
-        xlabel('Session'); ylabel('Error rate');
         
         figure
         plt.bar(B.sessN,B.MT,'split',[B.seqType B.FoSEx],'leg',{'1st train','2nd train','1st untrain','2nd untrain'},'leglocation','northeast'); 
@@ -2811,57 +2805,59 @@ switch(what)
         
     case 'trialwise_act_ROI' %------------------------------- TRIALWISE ANALYSIS (CLEAN-UP)--------------------
         % to check the model quality of the glm
-        sn=[1:9,11,12];
+        sn=[4:9,11:31];
+        sessN=[1:4];
         vararginoptions(varargin,{'sn','sessN'});
 
         pre=0;         % How many TRs before the trial onset
         post=8;        % How many TRs after the trial onset
         T=[];
-        for s=sn
-            fprintf('Extracting the onsets and events for subject %s, and session %d\n',subj_name{s},sessN);
-            load(fullfile(glmFoSExDir{sessN},subj_name{s},'SPM.mat')); 
-            SPM=spmj_move_rawdata(SPM,fullfile(baseDir,'imaging_data', subj_name{s}));
-            load(fullfile(regDir,[subj_name{s} '_regions.mat']));      % This is made in case 'ROI_define'
-            [y_raw, y_adj, y_hat, y_res,B] = region_getts(SPM,R);      % Gets the time series data for the data
-            
-            % Create a structure with trial onset and trial type (event)
-            D=spmj_get_ons_struct(SPM);     % Returns onsets in TRs, not secs
-            
-            % D.event - conditions (seqNumb: 1-12 - first exe; 13-24 - second exe)
-            % D.block - run
-            % add other indicators - FoSEx, seqNumb, seqType
-            D.FoSEx=D.event;
-            D.FoSEx(find(D.FoSEx<13))=1;
-            D.FoSEx(find(D.FoSEx>12))=2;
-            D.seqNumb=D.event;
-            D.seqNumb(find(D.seqNumb>12))=D.seqNumb(find(D.seqNumb>12))-12;
-            D.seqType=D.event;
-            D.seqType(D.seqNumb<7)=1;
-            D.seqType(D.seqNumb>6)=2;
-            
-            
-            for r=1:size(y_raw,2)   % regions
-                S.block=D.block;
-                for i=1:(size(S.block,1));  
-                    S.y_adj(i,:)=cut(y_adj(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    S.y_hat(i,:)=cut(y_hat(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    S.y_res(i,:)=cut(y_res(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    S.y_raw(i,:)=cut(y_raw(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                end;                
-                S.event=D.event;
-                S.FoSEx=D.FoSEx;
-                S.seqNumb=D.seqNumb;
-                S.seqType=D.seqType;
-                S.sn=ones(length(S.event),1)*s;
-                S.region=ones(length(S.event),1)*r; % region
-                S.regType=regType(S.region)';
-                S.regSide=regSide(S.region)';
-
-                T=addstruct(T,S);
+        for ss=sessN
+            for s=sn
+                fprintf('Extracting the onsets and events for subject %s, and session %d\n',subj_name{s},ss);
+                load(fullfile(glmFoSExDir{ss},subj_name{s},'SPM.mat'));
+                SPM=spmj_move_rawdata(SPM,fullfile(baseDir,'imaging_data', subj_name{s}));
+                load(fullfile(regDir,[subj_name{s} '_regions.mat']));      % This is made in case 'ROI_define'
+                [y_raw, y_adj, y_hat, y_res,B] = region_getts(SPM,R);      % Gets the time series data for the data
+                
+                % Create a structure with trial onset and trial type (event)
+                D=spmj_get_ons_struct(SPM);     % Returns onsets in TRs, not secs
+                
+                % D.event - conditions (seqNumb: 1-12 - first exe; 13-24 - second exe)
+                % D.block - run
+                % add other indicators - FoSEx, seqNumb, seqType
+                D.FoSEx=D.event;
+                D.FoSEx(find(D.FoSEx<13))=1;
+                D.FoSEx(find(D.FoSEx>12))=2;
+                D.seqNumb=D.event;
+                D.seqNumb(find(D.seqNumb>12))=D.seqNumb(find(D.seqNumb>12))-12;
+                D.seqType=D.event;
+                D.seqType(D.seqNumb<7)=1;
+                D.seqType(D.seqNumb>6)=2;
+                
+                for r=1:size(y_raw,2)   % regions
+                    S.block=D.block;
+                    for i=1:(size(S.block,1));
+                        S.y_adj(i,:)=cut(y_adj(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                        S.y_hat(i,:)=cut(y_hat(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                        S.y_res(i,:)=cut(y_res(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                        S.y_raw(i,:)=cut(y_raw(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                    end;
+                    S.event=D.event;
+                    S.FoSEx=D.FoSEx;
+                    S.seqNumb=D.seqNumb;
+                    S.seqType=D.seqType;
+                    S.sn=ones(length(S.event),1)*s;
+                    S.region=ones(length(S.event),1)*r; % region
+                    S.regType=regType(S.region)';
+                    S.regSide=regSide(S.region)';
+                    
+                    T=addstruct(T,S);
+                end;
             end;
-        end;
-        cd(repSupDir);
-        save(sprintf('trialwise_ACT_sess%d.mat',sessN),'-struct','T');
+            cd(repSupDir);
+            save(sprintf('trialwise_ACT_sess%d.mat',ss),'-struct','T');
+        end
     case 'trialwise_BEH'
         sn=[1:9,11,12];
         vararginoptions(varargin,{'sn','sessN'});
@@ -3029,7 +3025,7 @@ switch(what)
         end
      
     case 'ROI_getBetas_trialwise'
-        sn=[1:9,11,12];
+        sn=[4:9,11:31];
         sessN=[1:4];
         roi=[1:8];
         vararginoptions(varargin,{'sn','sessN','roi'});
