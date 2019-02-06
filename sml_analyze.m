@@ -20,10 +20,13 @@ c3=[249 191 193]/255;
 gray=[80 80 80]/255;
 lightgray=[160 160 160]/255;
 black=[0 0 0]/255;
+blue=[0 0 1];
+red=[1 0 0];
 
 %styOtherHand= style.custom({c1,c2,c3},'markersize',10,'errorbars','shade');
 
-styOtherHand= style.custom({gray,lightgray,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
+%styOtherHand= style.custom({gray,lightgray,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
+styOtherHand= style.custom({blue,red,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
 styTest = style.custom({c1,c2});
 
 switch what
@@ -416,6 +419,9 @@ switch what
         for i=2:5 % each test-day
             [MT,subj]   = pivottable(D.SN,D.OH_seqIdx,D.MT,'nanmean','subset',D.testDay==i);
             subplot(1,4,i-1)
+            % first remove performance on random sequences
+            MT(:,1) = MT(:,3) - MT(:,1);
+            MT(:,2) = MT(:,3) - MT(:,2);
             plt.scatter(MT(:,1),MT(:,2),'label',(1:27));
             hold on;
             ax = xlim;
@@ -425,11 +431,39 @@ switch what
             xlabel('Intrinsic');
             ylabel('Extrinsic');
             title(sprintf('Test day %d',i-1));
-            refline(1,0);
+            %refline(1,0);
+            hold on;
+            %axis equal;
+            drawline(0,'dir','horz');
+            drawline(0,'dir','vert');
+            ind = MT(:,1)./MT(:,2);
+            cIE=corr(ind,MT(:,3))
+        end
+    case 'PLOT_OtherHand_diff'
+        D=load(fullfile(anaDir,'tests_OtherHand.mat'));
+        figure
+        for i=2:5 % each test-day
+            [MT,subj]   = pivottable(D.SN,D.OH_seqIdx,D.MT,'nanmean','subset',D.testDay==i);
+            subplot(1,4,i-1)
+            % first remove performance on random sequences
+            MT(:,1) = MT(:,3) - MT(:,1);
+            MT(:,2) = MT(:,3) - MT(:,2);
+            diffTime = MT(:,1)-MT(:,2);
+            plt.scatter([1:27]',diffTime,'label',(1:27));
+           % plot([1:27],diffTime,'o');
+            hold on;
+            ylabel('Extrinsic - intrinsic');
+            title(sprintf('Test day %d',i-1));
+            %refline(1,0);
+            hold on;
+            %axis equal;
+            drawline(0,'dir','horz');
+            drawline(0,'dir','vert');
             ind = MT(:,1)./MT(:,2);
             cIE=corr(ind,MT(:,3))
         end
 
+        
     case 'FORM_OtherHand_psc'
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
         
@@ -632,7 +666,7 @@ switch what
         ylabel('Chunk movement time');
         keyboard;
 
-    case 'BEH_ipi'pen 
+    case 'BEH_ipi'
         vararginoptions(varargin,{'sn'});
         
         AllSubj = [];

@@ -2055,7 +2055,7 @@ switch what
         end
 
         X = repmat(sample_wor(1:size(SeqG1,1),size(SeqG1,1)),runs,1);
-        SeqTest_G1.cueC = cellstr(repmat('?',length(Trials),1));
+        SeqTest_G1.cueC = cellstr(repmat('',length(Trials),1));
         SeqTest_G2.cueC = cellstr(repmat('?',length(Trials),1));
         
         SeqTest_G1.iti(1:length(Trials),:) = 500;
@@ -2162,6 +2162,25 @@ switch what
             B1 = B1+trial_run;
             B2 = B2+trial_run;
             
+        end
+    
+    case 'Fix_cue'
+        sn='s05';
+        group=1;
+        vararginoptions(varargin,{'sn','group'});
+        subjDir = fullfile(baseDir,'RetentionTest',sn);
+        cd(subjDir);
+        for i=1:6
+            D=dload(sprintf('sml_OHT_G%d_B%d.tgt',group,i));
+            D.cueC = repmat({'?'},size(D.iti));
+            D.cueS = repmat({'?'},size(D.iti));
+            dsave(sprintf('sml_OHT_G%d_B%d.tgt',group,i),D);
+        end
+        for i=1:9
+            D=dload(sprintf('sml_STB_G%d_B%d.tgt',group,i));
+            D.cueC = repmat({'?'},size(D.iti));
+            D.cueS = repmat({'?'},size(D.iti));
+            dsave(sprintf('sml_STB_G%d_B%d.tgt',group,i),D);
         end
         
     otherwise
