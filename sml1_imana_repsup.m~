@@ -4247,7 +4247,7 @@ switch(what)
                     K.sessN = ones(length(K.indx),1)*ss;
                     K.exe   = ones(length(K.indx),1)*rep;   
                     KK=addstruct(KK,K);
-                    fprintf('Done sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
+                    fprintf('Done sess-%d reg-%d/%d\n',ss,r,length(reg));
                 end
             end
         end

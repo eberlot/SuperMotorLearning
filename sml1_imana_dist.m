@@ -1427,175 +1427,7 @@ switch(what)
         % % save
         save(fullfile(regDir,sprintf('stats_LOC_%sPW_sess%d.mat',betaChoice,sessN)),'-struct','To');
         fprintf('\nDone.\n')      
-       
-    case 'ROI_pattern_consist'  
-        % pattern consistency for specified roi
-        % Pattern consistency is a measure of the proportion of explained
-        % beta variance across runs within conditions. 
-        % 
-
-        % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
-        % (1) Set parameters
-        sn  = [4:9,11:31];
-        roi = [1:8];
-        sessN=[1:4];
-        betaChoice='multiPW'; % multiPW, uniPW, raw
-        parcelType='Brodmann'; 
-        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
-        
-        numRun=numruns_task_sess;
-        numCond=numel(num_seq);
-        
-
-        RR=[];
-        %========%
-        for ss=sessN
-            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
-            for h=1:2
-                for r=roi
-                    for s=sn
-                        S = getrow(T,(T.SN==s & T.regType==r & T.regSide==h));
-                        
-                        switch(betaChoice)
-                            case 'raw'
-                                beta  = S.betaRAW{1};
-                            case 'uniPW'
-                                beta  = S.betaUW{1};
-                            case 'multiPW'
-                                beta  = S.betaW{1};
-                        end
-                         res = S.resMS{1};
-                        % make vectors for pattern consistency func
-                        partVec = kron([1:numRun]',ones(numCond,1));
-                        condVec = kron(ones(numRun,1),[1:numCond]');
-                        
-                        % calculate the pattern consistency
-                        R.cnr                           = cnr_QC(beta,res,numCond,numRun);  % contrast to noise ratio
-                        R.r2_rm                         = rsa_patternConsistency(beta,partVec,condVec,'removeMean',1);  % pattern consistency
-                        R.r2                            = rsa_patternConsistency(beta,partVec,condVec,'removeMean',0);
-                        [R.r2_cross_rm, R.r_cross_rm]   = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',1); % correlation of patterns
-                        [R.r2_cross, R.r_cross]         = rsa_patternConsistency_crossval(beta,partVec,condVec,'removeMean',0);
-                        
-                        R.sn        = s;
-                        R.sessN     = ss;
-                        R.region    = (h-1)*max(roi)+r;
-                        R.regType   = r;
-                        R.regSide   = h;
-                        
-                        RR=addstruct(RR,R);
-                    end
-                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
-                end
-            end
-        end
-        
-        %save the structure
-        save(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
-    case 'ROI_PLOT_pattern_consist' 
-       var = 'cnr'; % cnr, r2_rm, r2, r2_cross, r_cross, r2_cross_rm, r_cross_rm
-       betaChoice = 'multiPW';
-       roi=[1:8];
-       parcelType='Brodmann';
-       vararginoptions(varargin,{'var','betaChoice','roi','parcelType'});
-       
-       T = load(fullfile(QCDir,sprintf('QualityControl_%s_%sBetas',parcelType,betaChoice)));
-          
-       figure
-       subplot(211)
-       plt.bar(T.regType,T.r_cross,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
-           'leglocation','northeast','style',stySess);
-       title('crossval-correlation');
-       ylabel('r');
-       subplot(212)
-       plt.bar(T.regType,T.r_cross_rm,'subset',T.regSide==1,'split',T.sessN,'leg',{'sess1','sess2','sess3','sess4'},...
-           'leglocation','northeast','style',stySess);
-       title('crossval-correlation mean removed');
-       ylabel('r');
-    case 'ROI_runwiseDrift'
-        % pattern consistency for specified roi
-        % Pattern consistency is a measure of the proportion of explained
-        % beta variance across runs within conditions. 
-        % 
-
-        % enter sn, region,  beta: 0=betaW, 1=betaU, 2=raw betas
-        % (1) Set parameters
-        sn  = [4:9,11:31];
-        roi = [1:8];
-        sessN=[1:4];
-        betaChoice='multiPW'; % multiPW, uniPW, raw
-        parcelType='Brodmann'; 
-        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
-        
-        numRun=numruns_task_sess;
-        numCond=numel(num_seq);
-        % make vectors for pattern consistency func
-        partVec = kron([1:numRun]',ones(numCond,1));
-        %condVec = kron(ones(numRun,1),[1:numCond]');
-        RR=[];
-        for ss=sessN
-            T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss))); % loads in struct 'T'
-            for h=1:2
-                for r=roi
-                    for s=sn
-                        S = getrow(T,(T.SN==s & T.regType==r & T.regSide==h));
-                        switch(betaChoice)
-                            case 'raw'
-                                beta  = S.betaRAW{1};
-                            case 'uniPW'
-                                beta  = S.betaUW{1};
-                            case 'multiPW'
-                                beta  = S.betaW{1};
-                        end
-                        for r1=1:8
-                            for r2=r1:8
-                                beta1       = beta(partVec==r1,:);
-                                beta2       = beta(partVec==r2,:);
-                                R.corr      = mean(diag(corr(beta1',beta2')));
-                                beta1       = bsxfun(@minus,beta1,mean(beta1,1));
-                                beta2       = bsxfun(@minus,beta2,mean(beta2,1));
-                                R.corr_rm   = mean(diag(corr(beta1',beta2')));
-                                R.run1      = r1;
-                                R.run2      = r2;
-                                R.sn        = s;
-                                R.sessN     = ss;
-                                R.region    = (h-1)*max(roi)+r;
-                                R.regType   = r;
-                                R.regSide   = h;
-                                RR=addstruct(RR,R);
-                            end
-                        end
-                    end
-                    fprintf('Done sess-%d hemi-%d roi-%d\n',ss,h,r);
-                end
-            end
-        end
-        %save the structure
-        save(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)),'-struct','RR');
-    case 'PLOT_runwiseDrift'
-        betaChoice='multiPW'; % multiPW, uniPW, raw
-        parcelType='Brodmann'; 
-        roi=[1:8];
-        hemi=1;
-        var='corr'; % corr or corr_rm
-        vararginoptions(varargin,{'roi','betaChoice','parcelType','hemi','var'});
-        T = load(fullfile(QCDir,sprintf('RunWise_Drift_%s_%sBetas',parcelType,betaChoice)));
-        
-        figure
-        for r=1:numel(roi)
-            subplot(numel(roi),1,r)
-            plt.line(T.run1,T.(var),'subset',T.regType==roi(r) & T.regSide==hemi & T.run2==T.run1+1,'split',T.sessN,...
-                'style',stySess);
-            title(regname_cortex{roi(r)});
-        end
-        
-        figure
-        for r=1:numel(roi)
-            subplot(numel(roi),1,r)
-            plt.line(T.run2,T.(var),'subset',T.regType==roi(r) & T.regSide==hemi & T.run1==1 & T.run2~=1,'split',T.sessN,...
-                'style',stySess);
-            title(regname_cortex{roi(r)});
-        end
-        
+            
     case 'SURF_flatmap_rgb'
         sessN=[1:4];
         smooth=0;
@@ -3179,7 +3011,8 @@ switch(what)
                 K.regType = ones(length(K.indx),1)*regType(r);
                 K.regSide = ones(length(K.indx),1)*regSide(r);
                 K.sessN = ones(length(K.indx),1)*ss;
-                KK=addstruct(KK,K);         
+                KK=addstruct(KK,K); 
+                fprintf('Done sess-%d reg-%d/%d\n',ss,r,length(reg));
             end
         end
         
@@ -5276,7 +5109,6 @@ switch(what)
                 caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.consistRDM_sess%d.metric',hem{h},ss)),R);
             end
         end
-     
         
     case 'CLUSTER_surface'
         distType='cosine';
@@ -5659,18 +5491,7 @@ switch(what)
             end
         end
     
-    case 'job'
-        % job over Xmas / NYs
-    %    parcel={'Brodmann','BG-striatum','162tessels'};
-    %    for i=1:length(parcel)
-    %        sml1_imana_dist('PCM_constructModelFamily','parcelType',parcel{i},'regSelect','all');
-    %        fprintf('Done %s\n',parcel{i});
-    %    end
-        % searchlights
-     %   sml1_imana_dist('SEARCH_define','sn',[26:31]);
-      %  sml1_imana_dist('SEARCH_dist_runLDC','sn',[26:31],'sessN',[1:4]);
-        sml1_imana_repsup('SEARCH_run_LDC','sn',[26:31],'sessN',[1:4]);
-        case 'TRANSFORM_rdms'
+    case 'TRANSFORM_rdms'
         % use this case to transform G from reg1->reg2
         % save in a subfolder of the clusterDir
         sn=[4:9,11:31];

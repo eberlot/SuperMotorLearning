@@ -225,15 +225,14 @@ switch(what)
             keyboard;
             % posthoc t-tests
             ind = indicatorMatrix('allpairs',[1:4]);
-            for r=roi
-                for i=1:size(ind,1)
-                    ind_r = find(ind(i,:));
-                    fprintf('\n t-test %s : overall pattern, sess:%d-%d\n',regname_cortex{r},ind_r(1),ind_r(2));
-                    ttestDirect(T.r_cross,[T.sessN T.sn],2,'paired','subset',T.regType==r & T.regSide==hemi & ismember(T.sessN,ind_r));
-                    fprintf('mean pattern removed\n')
-                    ttestDirect(T.r_cross_rm,[T.sessN T.sn],2,'paired','subset',T.regType==r & T.regSide==hemi & ismember(T.sessN,ind_r));
-                end
+            for r=1:size(ind,1)
+                ind_r 
+                fprintf('\n session ANOVA for %s : overall pattern\n',regname_cortex{r});
+                anovaMixed(T.r_cross,T.sn,'within',[T.sessN],{'session'},'subset',T.regType==r & T.regSide==hemi);
+                fprintf('mean pattern removed\n')
+                anovaMixed(T.r_cross_rm,T.sn,'within',[T.sessN],{'session'},'subset',T.regType==r & T.regSide==hemi);
             end
+       
     case 'beta_runwiseDrift'
         % pattern consistency for specified roi
         % Pattern consistency is a measure of the proportion of explained

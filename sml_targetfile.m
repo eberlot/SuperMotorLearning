@@ -120,8 +120,8 @@ R2 = load(fullfile(seqDir,'RandomChunkSeq2.mat'));
 RandChunkSeq1 = R1.RandomChunkSeq1;
 RandChunkSeq2 = R2.RandomChunkSeq2;
 
-C1 = {'?'; '?';'?';'?';'?';'?'};
-C2 = {'?'; '?'; '?';'?'; '?';'?';'?';'?';'?';'?';'?'};
+C1 = {'£'; '£';'£';'£';'£';'£'};
+C2 = {'£'; '£'; '£';'£'; '£';'£';'£';'£';'£';'£';'£'};
 C3 = {'***'};
 C3Seq = {'*********'};
 
@@ -1902,8 +1902,8 @@ switch what
         
         X = repmat(sample_wor(1:size(SeqG1,1),size(SeqG1,1)),runs/2,1);
         
-        OtherHandTest_G1.cueC = cellstr(repmat('?',length(Trials),1));
-        OtherHandTest_G2.cueC = cellstr(repmat('?',length(Trials),1));
+        OtherHandTest_G1.cueC = cellstr(repmat('£',length(Trials),1));
+        OtherHandTest_G2.cueC = cellstr(repmat('£',length(Trials),1));
         
         OtherHandTest_G1.iti(1:length(Trials),:) = 500;
         OtherHandTest_G2.iti(1:length(Trials),:) = 500;
@@ -2055,8 +2055,13 @@ switch what
         end
 
         X = repmat(sample_wor(1:size(SeqG1,1),size(SeqG1,1)),runs,1);
+<<<<<<< Updated upstream
         SeqTest_G1.cueC = cellstr(repmat('',length(Trials),1));
         SeqTest_G2.cueC = cellstr(repmat('?',length(Trials),1));
+=======
+        SeqTest_G1.cueC = cellstr(repmat('£',length(Trials),1));
+        SeqTest_G2.cueC = cellstr(repmat('£',length(Trials),1));
+>>>>>>> Stashed changes
         
         SeqTest_G1.iti(1:length(Trials),:) = 500;
         SeqTest_G2.iti(1:length(Trials),:) = 500;
