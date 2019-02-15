@@ -22,13 +22,17 @@ lightgray=[160 160 160]/255;
 black=[0 0 0]/255;
 blue=[0 0 1];
 red=[1 0 0];
-
+blue=[49,130,189]/255;
+lightblue=[158,202,225]/255;
+red=[222,45,38]/255;
+lightred=[252,146,114]/255;
+styRSbeh = style.custom({red,lightred,blue,lightblue},'markersize',12);
+stySeq2 = style.custom({red,blue,lightred,lightblue},'markersize',12);
 %styOtherHand= style.custom({c1,c2,c3},'markersize',10,'errorbars','shade');
-
 %styOtherHand= style.custom({gray,lightgray,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
 styOtherHand= style.custom({blue,red,black},'markersize',10,'errorbars','shade','linestyle',{'-','--','-.'});
 styTest = style.custom({c1,c2});
-
+styTrio = style.custom({red,c1,black,c3,c2,gray});
 switch what
     case 'save_subj'  % create .mat structure for each subject from .dat file
         sn=[4:9,11:31];
@@ -169,29 +173,22 @@ switch what
     case 'PLOT_testFoSEx_MT'
         D=load(fullfile(anaDir,'testsRH.mat'));
         
-        sty = style.custom({'red','blue'},'markersize',12);
-        figure
-        subplot(1,3,1)
-        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==1,'leg',{'1st','2nd'},'style',sty);
-        title('Trained sequences'); xlabel('Test day'); ylabel('Movement time');
-        
-        subplot(1,3,2)
-        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==4,'leg',{'1st','2nd'},'style',sty);
-        title('Random sequences'); ylabel('');
-        
-        subplot(1,3,3)
-        plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==5,'leg',{'1st','2nd'},'style',sty);
-        title('Chunked sequences'); ylabel('');
-        
-        plt.match('y');
-        
-        
-        
-        blue=[49,130,189]/255;
-        lightblue=[158,202,225]/255;
-        red=[222,45,38]/255;
-        lightred=[252,146,114]/255;
-        styRSbeh = style.custom({red,lightred,blue,lightblue},'markersize',12);
+%         sty = style.custom({'red','blue'},'markersize',12);
+%         figure
+%         subplot(1,3,1)
+%         plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==1,'leg',{'1st','2nd'},'style',sty);
+%         title('Trained sequences'); xlabel('Test day'); ylabel('Movement time');
+%         
+%         subplot(1,3,2)
+%         plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==4,'leg',{'1st','2nd'},'style',sty);
+%         title('Random sequences'); ylabel('');
+%         
+%         subplot(1,3,3)
+%         plt.line(D.testDay,D.MT,'split',D.FoSEx,'subset',D.seqType==5,'leg',{'1st','2nd'},'style',sty);
+%         title('Chunked sequences'); ylabel('');
+%         
+%         plt.match('y');
+%         
         D = getrow(D,D.seqType~=4);
         D.seqType(D.seqType==4)=2;
          % reduced structure
@@ -204,10 +201,40 @@ switch what
         
         figure
         plt.dot(N.testDay,N.MT,'split',[N.seqType N.FoSEx],'leg',{'1st train','2nd train','1st untrain','2nd untrain'},'leglocation','northeast','style',styRSbeh);
+        xlabel('Test day');
+        ylabel('Movement time');
         %
         figure
         plt.box(N.testDay,N.MT,'split',[N.seqType N.FoSEx],'plotall',0,'leg',{'1st train','2nd train','1st untrain','2nd untrain'},'leglocation','northeast','style',styRSbeh);
+        xlabel('Test day');
+        ylabel('Movement time');
         %      
+        % stats: ANOVA (seqType x repetition)
+        for t=unique(N.testDay)'
+            fprintf('Anova day %d\n',t);
+            anovaMixed(N.MT,N.sn,'within',[N.seqType N.FoSEx],{'seqType','FoSEx'},'subset',N.testDay==t);
+        end
+        keyboard;
+        % calculate the percentage per person
+        P = getrow(N,N.FoSEx==1);
+        P.MT = N.MT(N.FoSEx==2)./N.MT(N.FoSEx==1);
+        figure
+        plt.dot(P.testDay, P.MT,'split',P.seqType,'leg',{'trained','untrained'},'style',stySeq);
+        drawline(1,'dir','horz');
+        xlabel('Test day');
+        ylabel('Movement time (ratio: 2nd/1st)');
+        % stats on ratios
+        keyboard;
+        for t=unique(P.testDay)'
+            fprintf('Day %d\n',t);
+            fprintf('One sample trained\n');
+            ttestDirect(P.MT-1,[P.sn],2,'onesample','subset',P.testDay==t & P.seqType==1);           
+            fprintf('One sample random\n');
+            ttestDirect(P.MT-1,[P.sn],2,'onesample','subset',P.testDay==t & P.seqType==2);
+            fprintf('Paired\n');
+            ttestDirect(P.MT,[P.seqType P.sn],2,'paired','subset',P.testDay==t);
+        end
+        
     case 'PLOT_testFoSEx_ER'
         D=load(fullfile(anaDir,'testsRH.mat'));
         
@@ -441,13 +468,16 @@ switch what
         end
     case 'PLOT_OtherHand_diff'
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
+        TT=[];
         figure
         for i=2:5 % each test-day
             [MT,subj]   = pivottable(D.SN,D.OH_seqIdx,D.MT,'nanmean','subset',D.testDay==i);
             subplot(1,4,i-1)
             % first remove performance on random sequences
-            MT(:,1) = MT(:,3) - MT(:,1);
-            MT(:,2) = MT(:,3) - MT(:,2);
+            %MT(:,1) = MT(:,3) - MT(:,1);
+            %MT(:,2) = MT(:,3) - MT(:,2);
+            %MT(:,1) = -(MT(:,1) - MT(:,3));
+            %MT(:,1) = -(MT(:,2) - MT(:,3));
             diffTime = MT(:,1)-MT(:,2);
             plt.scatter([1:27]',diffTime,'label',(1:27));
            % plot([1:27],diffTime,'o');
@@ -461,8 +491,26 @@ switch what
             drawline(0,'dir','vert');
             ind = MT(:,1)./MT(:,2);
             cIE=corr(ind,MT(:,3))
+            T.diffTime = diffTime;
+            T.SN       = [1:27]';
+            T.testDay  = ones(size(diffTime))*i;
+            TT=addstruct(TT,T);
         end
 
+        keyboard;
+        T2=getrow(TT,TT.SN~=25); % remove outlier
+        figure
+        subplot(131)
+        plt.scatter(T2.diffTime(T2.testDay==2),T2.diffTime(T2.testDay==3),'label',([1:24,26,27]));
+        title(sprintf('corr %d',corr(T2.diffTime(T2.testDay==2),T2.diffTime(T2.testDay==3))));
+        subplot(132)
+        plt.scatter(T2.diffTime(T2.testDay==3),T2.diffTime(T2.testDay==4),'label',([1:24,26,27]));
+        title(sprintf('corr %d',corr(T2.diffTime(T2.testDay==3),T2.diffTime(T2.testDay==4))));
+        subplot(133)
+        plt.scatter(T2.diffTime(T2.testDay==4),T2.diffTime(T2.testDay==5),'label',([1:24,26,27]));
+        title(sprintf('corr %d',corr(T2.diffTime(T2.testDay==4),T2.diffTime(T2.testDay==5))));
+        keyboard;
+        
         
     case 'FORM_OtherHand_psc'
         D=load(fullfile(anaDir,'tests_OtherHand.mat'));
@@ -617,14 +665,34 @@ switch what
         save(fullfile(anaDir,'alldata_wChunks'),'-struct','TT');
     case 'PLOT_chunks_learning'
         D=load(fullfile(anaDir,'alldata_wChunks'));
+        D = getrow(D,D.blockType==6);
+        T.chunkTime = [D.withinChunk; D.betweenChunk];
+        T.chunkType = [ones(size(D.withinChunk));ones(size(D.withinChunk))*2];
+        T.day       = [D.day; D.day];
+        T.SN        = [D.SN; D.SN];
+        T.seqType   = [D.seqType; D.seqType];
+        T.MT        = [D.MT; D.MT];
+        [fa ra ca] = pivottable([T.day T.SN],[T.chunkType T.seqType],T.chunkTime,'mean');
+        % create a new structure
+        C.chunkTime = fa(:);
+        C.day       = repmat(ra(:,1),2,1);
+        C.SN        = repmat(ra(:,2),2,1);
+        C.chunkType = [ones(size(fa,1),1);ones(size(fa,1),1)*2];
+                
         figure
-        sW=style.custom({'blue'},'markersize',12);
-        sB=style.custom({'red'},'markersize',12);
-        plt.line(D.day,D.withinChunk,'subset',D.blockType==6,'style',sW);
-        hold on;        
-        plt.line(D.day,D.betweenChunk,'subset',D.blockType==6,'style',sB);
+        subplot(211)
+        plt.line(C.day,C.chunkTime,'split',C.chunkType,'leg',{'withinChunk','betweenChunk'},'style',styTest);
         xlabel('Day');
         ylabel('Movement time');
+        
+        % normalise by the movement time fo the day
+        [fa ra ca] = pivottable([T.day T.SN],[T.chunkType T.seqType],T.chunkTime./T.MT,'mean');
+        C.chunkTime_norm = fa(:);
+        subplot(212)
+        plt.line(C.day,C.chunkTime_norm,'split',C.chunkType,'leg',{'withinChunk','betweenChunk'},'style',styTest);
+        xlabel('Day');
+        ylabel('Nomralized movement time');
+        
     case 'PLOT_chunks_testDays'
         D=load(fullfile(anaDir,'testsRH'));
         
@@ -640,8 +708,34 @@ switch what
         C.SN        = repmat(ra(:,2),6,1);
         C.chunkType = [ones(size(fa,1)*3,1);ones(size(fa,1)*3,1)*2];
         C.seqType   = repmat([ones(size(fa,1),1);ones(size(fa,1),1)*3;ones(size(fa,1),1)*2],2,1);
+        % do stats
+        for i=unique(C.testDay)'
+            fprintf('Day - %d\n',i);
+            fprintf('All sequences:\n');
+            anovaMixed(C.chunkTime,C.SN,'within',[C.chunkType C.seqType],{'chunkType','seqType'},'subset',C.testDay==i);
+            fprintf('Trained vs. chunked:\n');
+            anovaMixed(C.chunkTime,C.SN,'within',[C.chunkType C.seqType],{'chunkType','seqType'},'subset',C.seqType~=3 & C.testDay==i);
+            fprintf('Trained vs. random:\n');
+            anovaMixed(C.chunkTime,C.SN,'within',[C.chunkType C.seqType],{'chunkType','seqType'},'subset',C.seqType~=2 & C.testDay==i);
+            fprintf('Chunked vs. random:\n');
+            anovaMixed(C.chunkTime,C.SN,'within',[C.chunkType C.seqType],{'chunkType','seqType'},'subset',C.seqType~=1 & C.testDay==i);
+            % follow-up t-tests per testing day
+            for c=1:2  % per chunkType (effect of seqType)
+                fprintf('Trained vs. chunked - chunkType %d\n',c);
+                ttestDirect(C.chunkTime,[C.seqType C.SN],2,'paired','subset',C.testDay==i & C.seqType~=3 & C.chunkType==c);  
+                fprintf('Trained vs. random - chunkType %d\n',c);
+                ttestDirect(C.chunkTime,[C.seqType C.SN],2,'paired','subset',C.testDay==i & C.seqType~=2 & C.chunkType==c);  
+                fprintf('Chunked vs. random - chunkType %d\n',c);
+                ttestDirect(C.chunkTime,[C.seqType C.SN],2,'paired','subset',C.testDay==i & C.seqType~=1 & C.chunkType==c);  
+            end
+            for s=1:3 % per seqType (effect of chunkType)
+                fprintf('SeqType %d: effect of chunkType\n',s);
+                ttestDirect(C.chunkTime,[C.chunkType C.SN],2,'paired','subset',C.testDay==i & C.seqType==s);  
+            end
+        end
+        
         figure
-        plt.box(C.testDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-chunked','w-random','b-trained','b-chunked','b-random'},'style',styOtherHand,'plotall',0);
+        plt.box(C.testDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-chunked','w-random','b-trained','b-chunked','b-random'},'style',styTrio,'plotall',0);
         xlabel('Test day');
         ylabel('Chunk movement time');
     case 'PLOT_chunks_scanning'
@@ -661,11 +755,16 @@ switch what
         C.chunkType = [ones(size(fa,1)*2,1);ones(size(fa,1)*2,1)*2];
         C.seqType   = repmat([ones(size(fa,1),1);ones(size(fa,1),1)*2],2,1);
         figure
-        plt.box(C.scanDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-untrained','b-trained','b-untrained'},'style',styOtherHand,'plotall',0);
+        plt.box(C.scanDay,C.chunkTime,'split',[C.chunkType C.seqType],'leg',{'w-trained','w-untrained','b-trained','b-untrained'},'style',stySeq2);
         xlabel('Scan day');
         ylabel('Chunk movement time');
         keyboard;
-
+        % stats
+        for i=unique(C.scanDay)'
+            fprintf('Scan day %d\n',i);
+             anovaMixed(C.chunkTime,C.SN,'within',[C.chunkType C.seqType],{'chunkType','seqType'},'subset',C.scanDay==i & ~isnan(C.chunkTime));
+        end
+        
     case 'BEH_ipi'
         vararginoptions(varargin,{'sn'});
         
