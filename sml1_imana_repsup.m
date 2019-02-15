@@ -186,6 +186,9 @@ switch(what)
         % calculate psc for trained and untrained sequences (1st/2nd) - based on betas    
         vararginoptions(varargin,{'sn','sessN'});
         name={'TrainSeq_1st','TrainSeq_2nd','UntrainSeq_1st','UntrainSeq_2nd'};
+        for seq=1:12
+            name=[name sprintf('Seq%d-exe1',seq),sprintf('Seq%d-exe2',seq)];
+        end
         for ss=sessN
             for s=sn
                 cd(fullfile(glmFoSExDir{ss}, subj_name{s}));
@@ -222,6 +225,9 @@ switch(what)
      fileList = [];
      column_name = [];
      name={'TrainSeq_1st','TrainSeq_2nd','UntrainSeq_1st','UntrainSeq_2nd'};
+     for seq=1:12
+         name=[name sprintf('Seq%d-exe1',seq),sprintf('Seq%d-exe2',seq)];
+     end
      for ss=sessN
          for n = 1:length(name)
              fileList{n}=fullfile(['psc_sess' num2str(ss) '_' name{n} '.nii']);
@@ -1709,8 +1715,7 @@ switch(what)
              fprintf('Done ses%d\n',ss);
         end;
         save(fullfile(repSupDir,sprintf('corrDist_RS_%s_meanSubtract%d.mat',parcelType,subtract_mean)),'-struct','SAll');
-        save(fullfile(repSupDir,sprintf('corrDist_seqType_RS_%s_meanSubtract%d.mat',parcelType,subtract_mean)),'-struct','STAll');
-        
+        save(fullfile(repSupDir,sprintf('corrDist_seqType_RS_%s_meanSubtract%d.mat',parcelType,subtract_mean)),'-struct','STAll');       
     case 'PLOT_corrDist'
         roi=[1:8];
         subtract_mean=0;
@@ -3727,77 +3732,71 @@ switch(what)
         runEffect  = 'fixed';
         beta_choice = 'mw';
         algorithm='NR'; % minimize or NR
-        reg = [1:8];
-        sn=[1:9,11:25];
-        sessN=1; % need to be two sessions at the time
-        seqType='trained';
+        reg = [1:16];
+        sn=[4:9,11:31];
+        sessN=[1:4]; % need to be two sessions at the time
         models={'generic','specific'};
-        M_type=1; % 1 - generic, 2 - specific
+        parcelType='Brodmann';
+        M_type=2; % 1 - generic, 2 - specific
         
         vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','seqType','M_type'})
-        
-        switch seqType
-            case 'trained'
-                stIndx=1;
-            case 'untrained'
-                stIndx=2;
-        end
-        
+
         for ss = sessN
+            B=load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d.mat',parcelType,ss)));
             AllReg=[];
-            for r = reg
-                for p=1:length(sn)
-                    B=load(fullfile(regDir,sprintf('betas_FoSEx_sess%d.mat',ss)));
-                    glmDirSubj=fullfile(glmFoSExDir{ss}, subj_name{sn(p)});
+            for st=1:2
+                for r = reg
+                    for p=1:length(sn)
+                        b=getrow(B,B.SN==sn(p)&B.region==r);
+                        glmDirSubj=fullfile(glmFoSExDir{ss}, subj_name{sn(p)});
+                        
+                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                        
+                        switch (beta_choice)
+                            case 'uw'
+                                beta = b.betaUW{:}';
+                            case 'mw'
+                                beta = b.betaW{:}';
+                            case 'raw'
+                                beta = b.betaRAW{:}'; % no intercept - use T.betaRAWint otherwise
+                        end
+                        
+                        indx = ones(size(D.run));
+                        % conditions - 1-6 for first exe, 7-12 for second
+                        cond = D.seqNumb;
+                        if st==1
+                            % make condVec for second exe into 7-12
+                            cond(D.FoSEx==2)=cond(D.FoSEx==2)+6;
+                        else
+                            % make condVec for first exe into 1-6
+                            cond(D.FoSEx==1)=cond(D.FoSEx==1)-6;
+                        end
+                        condVec{p} = cond(D.seqType==st); % conditions
+                        partVec{p} = D.run(D.seqType==st);
+                        Data{p} = beta(:,D.seqType==st)';  % Data is N x P (cond x voxels) - no intercept
+                    end; % subj
                     
-                    D=load(fullfile(glmDirSubj,'SPM_info.mat'));
-                    
-                    switch (beta_choice)
-                        case 'uw'
-                            beta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
-                        case 'mw'
-                            beta = B.betaW{(B.SN==sn(p)&B.region==r)}';
-                        case 'raw'
-                            beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
+                    % construct models
+                    switch M_type
+                        case 1 % generic
+                            M = pcm_repsupModel_generic;
+                        case 2 % specific
+                            M = pcm_repsupModel_specific;
                     end
+                    T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm);
+                    C = pcm_correlation(Data,partVec,condVec,M{4},runEffect,M_type);
+                    T.roi = ones(size(T.SN))*r;
+                    T.regSide   = ones(size(T.SN))*b.regSide;
+                    T.regType   = ones(size(T.SN))*b.regType;
+                    T.seqType   = ones(size(T.SN))*st;
                     
-                    indx = ones(size(D.run));
-                    % conditions - 1-6 for first exe, 7-12 for second
-                    cond = D.seqNumb;
-                    if stIndx==1
-                        % make condVec for second exe into 7-12
-                        cond(D.FoSEx==2)=cond(D.FoSEx==2)+6;
-                    else
-                        % make condVec for first exe into 1-6
-                        cond(D.FoSEx==1)=cond(D.FoSEx==1)-6;
-                    end
-                    condVec{p} = cond(D.seqType==stIndx); % conditions      
-                    partVec{p} = D.run(D.seqType==stIndx);
-                    Data{p} = beta(:,D.seqType==stIndx)';  % Data is N x P (cond x voxels) - no intercept      
-                end; % subj
-                
-                % construct models
-                switch M_type
-                    case 1 % generic
-                        %M = pcm_corrModel;
-                        M = pcm_repsupModel_generic;
-                    case 2 % specific
-                        % M = pcm_corrModel_indSeq;
-                        M = pcm_repsupModel_specific;
-                end
-                T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm);
-                %  C = pcm_correlation(Data,partVec,condVec,M{2},runEffect,M_type);
-                C = pcm_correlation(Data,partVec,condVec,M{4},runEffect,M_type);
-                T.roi = ones(size(T.SN))*r;
-                AllReg=addstruct(AllReg,C);
-                AllReg=addstruct(AllReg,T);
-            end % region
-            
-            %remove some fields
-            a1='reg'; a2='theta'; a3='theta_hat'; a4='thetaCr';
-            AllReg=rmfield(AllReg,a1); AllReg=rmfield(AllReg,a2); AllReg=rmfield(AllReg,a3); AllReg=rmfield(AllReg,a4);
+                    AllReg=addstruct(AllReg,T);
+                    AllReg=addstruct(AllReg,C);
+                    AllReg=rmfield(AllReg,{'reg','theta','theta_hat','thetaCr'});
+                end % region
+            end; % seqType
             % save output
-            save(fullfile(pcmDir,sprintf('PCM_repsup_reliability_NEW_%s_%s_sess%d_%s.mat',models{M_type},seqType,ss,runEffect)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('PCM_repsup_models_%s_sess%d_%s.mat',models{M_type},ss,runEffect)),'-struct','AllReg');
         end % session
     case 'PCM_simulateCorr'
         runEffect = 'fixed';
@@ -3915,41 +3914,32 @@ switch(what)
         % generic or specific model - parameter for all 6 seq / per seq
         runEffect  = 'fixed';
         beta_choice = 'mw';
-        reg = [1:8];
-        parcelType='cortex'; % cortex or striatum
-        sn=[4:9,11:25];
-        sessN=[1:4]; % need to be two sessions at the time
-        seqType={'trained','untrained'};
-        modelType='generic'; %generic or specific
+        reg = 1:16;
+        parcelType='Brodmann'; % Brodmann
+        sn=[4:9,11:31];
+        sessN=1:4; % need to be two sessions at the time
+        modelType='specific'; %generic or specific
         
         vararginoptions(varargin,{'beta_choice','sn','reg','sessN','seqType','modelType','parcelType'})
         
-        for stIndx = 1:2    % seqType
-            for ss=sessN
-                CC=[];
+        for ss=sessN
+            CC=[];
+            B=load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d',parcelType,ss)));
+            for stIndx = 1:2 % seqType
                 for r = reg
                     for p=1:length(sn)
-                        switch parcelType
-                            case 'cortex'
-                                B=load(fullfile(regDir,sprintf('betas_FoSEx_sess%d.mat',ss)));
-                            case 'cortex_networks'
-                                B=load(fullfile(regDir,sprintf('betas_FoSEx_cortex_buckner_sess%d.mat',ss)));
-                            case 'striatum'
-                                B=load(fullfile(regDir,sprintf('betas_BG-striatum_FoSEx_sess%d.mat',ss)));
-                            case 'striatum_networks'
-                                B=load(fullfile(regDir,sprintf('betas_striatum_buckner_hemi_FoSEx_sess%d.mat',ss)));
-                        end
+                        b=getrow(B,B.SN==sn(p)&B.region==r);
                         glmDirSubj=fullfile(glmFoSExDir{ss}, subj_name{sn(p)});
                         
                         D=load(fullfile(glmDirSubj,'SPM_info.mat'));
                         
                         switch (beta_choice)
                             case 'uw'
-                                beta = B.betaUW{(B.SN==sn(p)&B.region==r)};
+                                beta = b.betaUW{:};
                             case 'mw'
-                                beta = B.betaW{(B.SN==sn(p)&B.region==r)}';
+                                beta = b.betaW{:}';
                             case 'raw'
-                                beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
+                                beta = b.betaRAW{:}'; % no intercept - use T.betaRAWint otherwise
                         end
                         %squeeze dimension of betaW if voxels with no data
                         if strcmp(parcelType,'striatum_networks')
@@ -3973,11 +3963,8 @@ switch(what)
                         else
                             cond(D.FoSEx==1)=cond(D.FoSEx==1)-6;
                         end
-                        condVec{p} = cond(D.seqType==stIndx); % conditions
-                        
+                        condVec{p} = cond(D.seqType==stIndx); % conditions                        
                         partVec{p} = D.run(D.seqType==stIndx);
-                        %Data{p} = beta(:,D.seqType==stIndx)';  % Data is N x P
-                        %(cond x voxels) - no intercept used with mw
                         Data{p} = beta(D.seqType==stIndx,:);
                         fprintf('Extracted data for %s...\n',subj_name{sn(p)});
                     end; % subj
@@ -3991,20 +3978,21 @@ switch(what)
                             M = pcm_corrModel_indSeq_sharedSeqType;
                             mf=2;
                     end
-                    
-                    % with mean pattern
-                    C     = pcm_correlation(Data,partVec,condVec,M{2},runEffect,mf);
-                    C.SN  = [1:size(C.r_naive,1)]';
-                    C.roi = ones(size(C.r_naive))*r;
-                    CC    = addstruct(CC,C);
+                    C           = pcm_correlation(Data,partVec,condVec,M{2},runEffect,mf);
+                    C.SN        = [1:size(C.r_naive,1)]';
+                    C.roi       = ones(size(C.r_naive))*r;
+                    C.regSide   = ones(size(C.r_naive))*b.regSide;
+                    C.regType   = ones(size(C.r_naive))*b.regType;
+                    C.seqType   = ones(size(C.r_naive))*stIndx;
+                    C           = rmfield(C,'theta');
+                    CC          = addstruct(CC,C);
                     fprintf('Done calculating corr for region-%d\n\n\n',r);
                 end
-                CC=rmfield(CC,'theta');
-                % save output
-                save(fullfile(pcmDir,sprintf('PCM_repsup_corr_%s_sess%d_%s_%s.mat',parcelType,ss,seqType{stIndx},modelType)),'-struct','CC');
-               % save(fullfile(pcmDir,sprintf('PCM_cov_%s_sess%d_%s_%s.mat',parcelType,ss,seqType{stIndx},modelType)),'-struct','CC');
-                fprintf('Done all regions sess-%d\n\n\n\n\n\n',ss);
             end
+            % save output
+            save(fullfile(pcmDir,sprintf('PCM_repsup_corr_%s_sess%d_%s.mat',parcelType,ss,modelType)),'-struct','CC');
+            % save(fullfile(pcmDir,sprintf('PCM_cov_%s_sess%d_%s_%s.mat',parcelType,ss,seqType{stIndx},modelType)),'-struct','CC');
+            fprintf('Done all regions sess-%d\n\n',ss);
         end
     case 'CROSSVAL_corr'
         % looking both into simple model (generic / specific)
@@ -4180,6 +4168,7 @@ switch(what)
         parcelType='Brodmann'; % Brodmann or 162tessels
         fingType='Count';
         regSelect='all'; % all or subset
+        reg=[1:4];
         sn=[4:9,11:31]; % change
         sessN=[1:4];
         AllReg=[];
@@ -4198,9 +4187,14 @@ switch(what)
         for ss = sessN
             B=load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d.mat',parcelType,ss)));
             if ~strcmp(parcelType,'162tessels')
-                reg=unique(B.region)';
-                regSide=(reg>size(reg,2)/2)+1;
-                regType=reg-((regSide-1)*size(reg,2)/2);
+                if ~strcmp(regSelect,'all')
+                    regSide=repmat(unique(B.regSide(ismember(B.region,reg))),length(reg),1);
+                    regType=unique(B.regType(ismember(B.region,reg)));
+                else
+                    reg=unique(B.region)';
+                    regSide=(reg>size(reg,2)/2)+1;
+                    regType=reg-((regSide-1)*size(reg,2)/2);
+                end
             else % only for 162tessels
                 regType=reg;
                 regType(regType>158)=regType(regType>158)-158;
@@ -4219,8 +4213,7 @@ switch(what)
                                 beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))}';
                             case 'raw'
                                 beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
-                        end
-                        
+                        end   
                         idx=D.FoSEx==rep;
                         m = pcm_defineSequenceModels_fixed_new(Seq,SeqChunks,p);
                         [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
@@ -4238,27 +4231,81 @@ switch(what)
                     T.exe   = ones(size(T.SN))*rep;
                     T=rmfield(T,{'reg','thetaCr','theta_hat'});
                     AllReg=addstruct(AllReg,T);
-                    
+                    fprintf('Done fitting models: sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
                     % calculations - posterior probability, knockIN/OUT
                     K = pcm_calc(T.cross_likelihood,Comb);
                     K.roi = ones(length(K.indx),1)*reg(r);
                     K.regType = ones(length(K.indx),1)*regType(r);
                     K.regSide = ones(length(K.indx),1)*regSide(r);
                     K.sessN = ones(length(K.indx),1)*ss;
-                    K.exe   = ones(length(K.indx),1)*rep;   
+                    K.exe   = ones(length(K.indx),1)*rep;
                     KK=addstruct(KK,K);
-                    fprintf('Done sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
+                    fprintf('Done overall: sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
                 end
             end
+            save(fullfile(pcmDir,sprintf('ModelFamilyComb_FoSEx_%s_sess%d.mat',parcelType,ss)),'Comb');
+            save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Fit_%s_sess%d.mat',parcelType,ss)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Stats_%s_sess%d.mat',parcelType,ss)),'-struct','KK');       
         end
         
         % save variables;
         dircheck(fullfile(pcmDir));
-        save(fullfile(pcmDir,sprintf('ModelFamilyComb_FoSEx_%s_new.mat',parcelType)),'Comb');
-        save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Fit_%s_fing%s_new.mat',parcelType,fingType)),'-struct','AllReg');
-        save(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Stats_%s_fing%s_new.mat',parcelType,fingType)),'-struct','KK');
-        
-        
+    case 'PCM_plotModels'
+        parcelType = 'Brodmann';
+        roi=[1:8];
+        var='knockOUT'; % knockOUT or logBayes;
+        vararginoptions(varargin,{'parcelType','roi','var'});
+        sessN=[1:4];
+        TT=[];
+        % concatenate across all sessions
+        for ss=sessN
+            T = load(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Stats_%s_sess%d.mat',parcelType,ss)));     
+            TT=addstruct(TT,T);
+        end
+        % features: 1) first finger, 2) all fingers, 3) transitions, 4)
+        % chunk trained, 5) chunk untrained, 6) seqType, 7) trained Seq, 8)
+        % untrained seq
+        for r=roi
+            figure
+            for ss=1:4
+                subplot(1,4,ss)
+                plt.bar(TT.indx,TT.(var),'split',TT.exe,'subset',TT.roi==r&TT.sessN==ss&TT.indx~=6,'leg',{'exe1','exe2'},'leglocation','northeast');
+                hold on;
+                drawline(0,'dir','horz');
+                xlabel('modelType');
+                ylabel(var);
+                plt.match('y');
+                title(sprintf('%s - sess%d',regname{r},ss));
+            end
+        end
+    case 'PCM_models_Stats'
+        parcelType = 'Brodmann';
+        roi=[1:8];
+        var='knockOUT'; % knockOUT or logBayes;
+        vararginoptions(varargin,{'parcelType','roi','var'});
+        sessN=[1:4];
+        TT=[];
+        % concatenate across all sessions
+        for ss=sessN
+            T = load(fullfile(pcmDir,sprintf('ModelFamily_FoSEx_Stats_%s_sess%d.mat',parcelType,ss)));     
+            TT=addstruct(TT,T);
+        end
+        % features: 1) first finger, 2) all fingers, 3) transitions, 4)
+        % chunk trained, 5) chunk untrained, 6) seqType, 7) trained Seq, 8)
+        % untrained seq
+        for r=roi
+            for ss=1:4
+                for i=1:8
+                    fprintf('reg-%d session-%d model-%d\n',r,ss,i);
+                    fprintf('one-sample 1st exe\n');
+                    ttestDirect(TT.(var),[TT.sn],2,'onesample','subset',TT.roi==r & TT.indx==i & TT.sessN==ss & TT.exe==1);
+                    fprintf('one-sample 2nd exe\n');
+                    ttestDirect(TT.(var),[TT.sn],2,'onesample','subset',TT.roi==r & TT.indx==i & TT.sessN==ss & TT.exe==2);
+                    fprintf('paired 1st vs. 2nd\n');
+                    ttestDirect(TT.(var),[TT.exe TT.sn],2,'paired','subset',TT.roi==r & TT.indx==i & TT.sessN==ss);
+                end 
+            end
+        end
     case 'PLOT_pcm_simulateCorr'
         
         modelType='specific';
@@ -4393,45 +4440,38 @@ switch(what)
                 ylabel('');
             end
         end
-    case 'PLOT_pcm_corr_allSess'
+    case 'PLOT_pcm_corr_allSess'        % use this
         reg = [1:8];
         sessN=[1:4];
-        seqType={'trained','untrained'};
-        modelType='generic';
-        parcelType = 'cortex';
+        modelType='specific';
+        parcelType = 'Brodmann';
         vararginoptions(varargin,{'reg','sessN','seqType','modelType','parcelType'});
         
         switch parcelType
-            case 'cortex'
+            case 'Brodmann'
                 lab = regname_cortex;
             case 'striatum'
                 lab = {'Caudate','Putamen'};
             case 'striatum_networks'
                 lab = {'Network-1','Network-2','Network-3','Network-4',...
                     'Network-5','Network-6','Network-7'};
-            case 'cortex_networks'
-                lab = {'Network-1','Network-2','Network-3','Network-4',...
-                    'Network-5','Network-6','Network-7'};
         end
         
         T=[];
-        for st=1:size(seqType,2)
-            for t=sessN
-                R=load(fullfile(pcmDir,sprintf('PCM_repsup_corr_%s_sess%d_%s_%s.mat',parcelType,t,seqType{st},modelType)));
-                R.sessN=ones(size(R.SN))*t;
-                R.seqType=ones(size(R.SN))*st;
-                T=addstruct(T,R);
-            end
+        for t=sessN
+            R=load(fullfile(pcmDir,sprintf('PCM_repsup_corr_%s_sess%d_%s.mat',parcelType,t,modelType)));
+            R.sessN=ones(size(R.SN))*t;
+            T=addstruct(T,R);
         end
         
         corrType={'naive','crossval','pcm','mean_naive','mean_crossval'};
-        corrVar=[T.r_naive, T.r_crossval3, T.r_model2, T.r_naive_meanOnly, T.r_crossval_meanOnly_evenOdd];
+        corrVar=[T.r_naive, T.r_crossval, T.r_model2, T.r_naive_meanOnly, T.r_crossval_mean];
         for ct=1:length(corrVar) % three types of correlation 
             figure(ct)
             sub=1;
             for r=reg
                 subplot(1,numel(reg),sub)
-                plt.line([T.sessN>3 T.sessN],corrVar(:,ct),'subset',T.roi==r,'split',T.seqType,'leg',{'trained','untrained'},'leglocation','north');
+                plt.line([T.sessN>3 T.sessN],corrVar(:,ct),'subset',T.roi==r,'split',T.seqType,'leg',{'trained','untrained'},'leglocation','north','style',stySeq);
                 plt.match('y');
                 drawline(0,'dir','horz');
                 title(sprintf('%s',lab{r}));
@@ -4650,7 +4690,7 @@ switch(what)
             end
             sub=sub+1;
         end
-    case 'STATS_modelPCM'
+    case 'STATS_modelPCM' % OLD
         reg = [1:8];
         sessN=[1:4];
         runEffect='fixed';
@@ -4732,28 +4772,28 @@ switch(what)
          keyboard;
     
     case 'CORR_splithalf' % ------------------------------- NEW : SPLIT-HALF Correlation
-        sn=[1:9,11:25];
-        sessN=[1:4];
+        sn=[4:9,11:31];
+        sessN=1:4;
         betaChoice='multiPW';
-        parcelType = 'striatum_buckner_hemi';
+        parcelType = 'Brodmann';
         vararginoptions(varargin,{'sn','roi','sessN','betaChoice'});
         
         AllCorr=[];
         % Make the components for estimation of loadings in G
-        Gc{1} = [ones(6,6)];   % seqType
-        Gc{2} = [eye(6)];      % sequence
-        GX=[];
-        for i=1:2
-            GX=[GX Gc{i}(:)];
-        end;
+     %   Gc{1} = [ones(6,6)];   % seqType
+     %   Gc{2} = [eye(6)];      % sequence
+%         GX=[];
+%         for i=1:2
+%             GX=[GX Gc{i}(:)];
+%         end;
         for ss=sessN
             %T = load(fullfile(regDir,sprintf('betas_FoSEx_sess%d',ss)));
-            T = load(fullfile(regDir,sprintf('betas_%s_FoSEx_sess%d',parcelType,ss)));
+            T = load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d',parcelType,ss)));
             for s=sn
                 D = load(fullfile(glmFoSExDir{ss},subj_name{s},'SPM_info'));
                 for r=1:max(T.region)
-                    for i=1:2 %repetition
-                        for j=1:2
+                    for i=1:2 %repetition 1
+                        for j=1:2 % repetition 2
                             for st=1:2 %seqType
                                 T1 = getrow(T,T.SN==s & T.region==r);
                                 % get betas
@@ -4776,14 +4816,14 @@ switch(what)
                                     D2.seqNumb = D2.seqNumb-6;
                                 end
                                 if (i==j)       % Same exe - split-half in the exe
-                                    [K,G] = splitHalfCorr(betas1,D1.run,D1.seqNumb,'withinSes');
+                                    K = splitHalfCorr(betas1,D1.run,D1.seqNumb,'withinSes');
                                 else
                                     % corr across exe
                                     % define condVec, partVec
                                     partVec = [{D1.run} {D2.run}];
                                     condVec = [{D1.seqNumb} {D2.seqNumb}];
                                     data    = [{betas1} {betas2}];
-                                    [K,G] = splitHalfCorr(data,partVec,condVec,'acrossSes');
+                                    K = splitHalfCorr(data,partVec,condVec,'acrossSes');
                                 end;
                                 K.sn        = s;
                                 K.sessN     = ss;
@@ -4798,10 +4838,10 @@ switch(what)
                                 K.exe1      = i;
                                 K.exe2      = j;
                                 K.seqType   = st;
-                                K.G          = {G};
-                                param        = (pinv(GX)*G(:)); % get the two parameters from regression on G
-                                K.hcov       = param(1); % overall mean
-                                K.dcov       = param(2); % digit-specific variance
+                              %  K.G          = {G};
+                              %  param        = (pinv(GX)*G(:)); % get the two parameters from regression on G
+                              %  K.hcov       = param(1); % overall mean
+                              %  K.dcov       = param(2); % digit-specific variance
                                 AllCorr=addstruct(AllCorr,K);  
                             end; % seqtype
                         end; % exe j
@@ -4818,52 +4858,82 @@ switch(what)
         % repetition (for trained / untrained)
         roi=[1:8];
         betaChoice='multiPW';
-        parcelType='striatum_buckner_hemi';
-        metric='corr'; % corr, corr_noMean, corr_mean
+        parcelType='Brodmann';
+        metric='corr_vox'; % corr_vox; corr_RDM
         vararginoptions(varargin,{'roi','metric','betaChoice'});
        % T = load(fullfile(repSupDir,sprintf('corr_splitHalf_NEW_exe_%s',betaChoice)));
         T = load(fullfile(repSupDir,sprintf('corr_splitHalf_%s_exe_%s',parcelType,betaChoice)));
         
-        for r=roi
-            R = getrow(T,T.regNum==r);
-            figure
-            subplot(1,3,1)
-            plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1~=R.exe2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
-            title(sprintf('%s - across exe',regname{r}));
-            subplot(1,3,2)
-            plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1==1 & R.exe2==1,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
-            title(sprintf('%s - within exe1',regname{r}));
-            subplot(1,3,3)
-            plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1==2 & R.exe2==2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
-            title(sprintf('%s - within exe2',regname{r}));
-            plt.match('y');
-
+        if strcmp(metric,'corr_RDMAll')
+            for r=roi
+                R = getrow(T,T.regNum==r);
+                figure(1)
+                subplot(1,numel(roi),r)
+                plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1~=R.exe2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
+                drawline(0,'dir','horz');
+                title(regname{r});
+                plt.match('y');
+                if r==1
+                    ylabel('RDM correlation 1st-2nd');
+                else
+                    ylabel('');
+                end
+                figure(2)
+                subplot(1,numel(roi),r)
+                plt.bar(R.sessN,R.(metric),'subset',R.seqType==1&ismember(R.sessN,[1,4]));
+                title(regname{r});
+                plt.match('y');
+                ylabel('');
+            end
+        else
+            for r=roi
+                R = getrow(T,T.regNum==r);
+                figure
+                subplot(1,3,1)
+                plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1~=R.exe2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
+                title(sprintf('%s - across exe',regname{r}));
+                subplot(1,3,2)
+                plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1==1 & R.exe2==1,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
+                title(sprintf('%s - within exe1',regname{r}));
+                subplot(1,3,3)
+                plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1==2 & R.exe2==2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
+                title(sprintf('%s - within exe2',regname{r}));
+                plt.match('y');
+                
+            end
         end
         % split into within and across
-    case 'CORR_splithalf_corrected'
+    case 'CORR_splithalf_corrected' % voxel or RDM correlation
         exe = [1 2];
         betaChoice='multiPW';
         sessN=[1:4];
-        vararginoptions(varargin,{'betaChoice'});
+        sn=[4:9,11:31];
+        parcelType='Brodmann';
+        vararginoptions(varargin,{'betaChoice','parcelType'});
         CC=[];
-        T = load(fullfile(repSupDir,sprintf('corr_splitHalf_exe_%s',betaChoice)));
+        T = load(fullfile(repSupDir,sprintf('corr_splitHalf_%s_exe_%s',parcelType,betaChoice)));
         sn=unique(T.sn);
         for ss=sessN
             for s=1:length(sn)
                 for r=1:max(T.regNum)
-                    D = getrow(T,T.sn==s & T.regNum==r & T.sessN==ss);
+                    D = getrow(T,T.sn==sn(s) & T.regNum==r & T.sessN==ss);
                     for st=1:2 % seqType
                         for i=1:length(exe)
                             for j=i:length(exe)
                                 t1=getrow(D,D.seqType==st & D.exe1==i & D.exe2==i);
                                 t2=getrow(D,D.seqType==st & D.exe1==j & D.exe2==j);
                                 tcross=getrow(D,D.seqType==st & D.exe1==i & D.exe2==j);
-                                if size(tcross.corr,1)~=0 % if there is data for both sessions
-                                    C.corr = tcross.corr_noMean/sqrt(t1.corr_noMean*t2.corr_noMean);
-                                    if ~isreal(C.corr)
-                                        C.corr=0; % or NaN
+                                if size(tcross.corr_vox,1)~=0 % if there is data for both sessions
+                                    C.corr_vox = tcross.corr_vox/sqrt(t1.corr_vox*t2.corr_vox);
+                                    C.corr_RDM = tcross.corr_RDM/sqrt(t1.corr_RDM*t2.corr_RDM);
+                                    if ~isreal(C.corr_vox)
+                                        C.corr_vox=0; % or NaN
+                                    end
+                                    if ~isreal(C.corr_RDM)
+                                        C.corr_RDM=0; % or NaN
                                     end
                                     % other info
+                                    C.sn = sn(s);
                                     C.exe1=i;
                                     C.exe2=j;
                                     C.sessN=ss;
@@ -4885,50 +4955,23 @@ switch(what)
                 fprintf('%d \t done sess%d - %s\n',s,ss,subj_name{s});
             end; % sn
         end; % sessN
-        save(fullfile(repSupDir,sprintf('Corr_splitHalf_exe_%s_corrected',betaChoice)),'-struct','CC');
-    case 'PLOT_splithalf_corr_corrected'
+        save(fullfile(repSupDir,sprintf('corr_splitHalf_%s_exe_%s_corrected',parcelType,betaChoice)),'-struct','CC');
+    case 'PLOT_splithalf_corr_corrected' % voxel or RDM correlation
         roi=[1:8];
         betaChoice='multiPW';
+        parcelType='Brodmann';
+        metric='corr_vox'; % corr_vox or corr_RDM
         vararginoptions(varargin,{'roi','metric','betaChoice'});
-        T = load(fullfile(repSupDir,sprintf('Corr_splitHalf_exe_%s_corrected',betaChoice)));
+        
+        T = load(fullfile(repSupDir,sprintf('corr_splitHalf_%s_exe_%s_corrected',parcelType,betaChoice)));
         
         figure
         for r=roi
             subplot(1,length(roi),r);
             R = getrow(T,T.regNum==r);
-            plt.line([R.sessN>3 R.sessN],R.corr,'split',R.seqType,'subset',R.exe1~=R.exe2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
+            plt.line([R.sessN>3 R.sessN],R.(metric),'split',R.seqType,'subset',R.exe1~=R.exe2,'style',stySeq,'leg',{'trained','untrained'},'leglocation','northeast');
             title(sprintf('%s - across exe',regname{r}));  
         end  
-    case 'CORR_splithalf_structure'
-        betaChoice='multiPW';
-        sessN=[1:4];
-        vararginoptions(varargin,{'betaChoice'});
-        CC=[];
-        T = load(fullfile(repSupDir,sprintf('corr_splitHalf_exe_%s',betaChoice)));
-        sn=unique(T.sn);
-        
-        for ss=sessN
-            for s=sn'
-                for r=1:max(T.regNum)
-                    for st=1:2 % seqType
-                        K=getrow(T,T.sn==s&T.sessN==ss&T.regNum==r&T.seqType==st);
-                        R(1) = K.G(1);
-                        R(2) = K.G(4);
-                        C.corr      = rsa_calcCorrRDMs(R);
-                        C.distCorr  = rsa_calcDistCorrRDMs(R);
-                        C.regNum    = r;
-                        C.seqType   = st;
-                        C.sn        = s;
-                        C.sessN     = ss;
-                        C.regType   = K.regType(1);
-                        C.regSide   = K.regSide(1);
-                        CC = addstruct(CC,C);
-                    end
-                end
-                fprintf('%d \t done sess%d - %s\n',s,ss,subj_name{s});
-            end
-        end
-        save(fullfile(repSupDir,sprintf('Corr_Gstruct_exe_%s',betaChoice)),'-struct','CC');
     case 'PLOT_splithalf_structure'
         roi=[1:8];
         betaChoice='multiPW';
@@ -6274,10 +6317,7 @@ switch(what)
         sml1_imana_repsup('SEARCH_run_LDC','sn',[6:9,11:25],'sessN',3,'repInd',2);
     case 'job3'
         sml1_imana_dist('SEARCH_dist_runLDC','sn',[13:25],'sessN',3);
-    
-   
-        
-        
+ 
     otherwise
         disp('there is no such case.')
 end;    % switch(what)
@@ -6339,7 +6379,7 @@ function M = pcm_corrModel_sharedSeqType
         
             
 end
-function M = pcm_corrModel_indSeq_sharedSeqType
+function M = pcm_corrModel_indSeq_sharedSeqType % OLD
 % --------------------------------------
 % Models separately for each first / second sequences
 % including also common pattern for first / second exe
@@ -6431,11 +6471,11 @@ function M = pcm_repsupModel_generic
     M{4}.Ac(:,1:6,1)  = [A;zeros(6)];           % Unique exe1 sequence patterns
     M{4}.Ac(:,7:12,2) = [zeros(6);A];           % Unique exe2 sequence pattterns
     M{4}.Ac(:,1:6,3)  = [zeros(6);A];           % Correlation exe1-exe2
-    M{4}.Ac(:,13,3)   = [ones(6,1);zeros(6,1)]; % Exe1 mean
-    M{4}.Ac(:,14,4)   = [zeros(6,1);ones(6,1)]; % Exe2 mean
+    M{4}.Ac(:,13,4)   = [ones(6,1);zeros(6,1)]; % Exe1 mean
+    M{4}.Ac(:,14,5)   = [zeros(6,1);ones(6,1)]; % Exe2 mean
     
 end
-function M = pcm_repsupModel_specific
+function M = pcm_repsupModel_specific % TO USE
     
     % Model 1: No sequence pattern
     M{1}.type           = 'feature';
@@ -6568,10 +6608,8 @@ function K = pcm_calc(likelihood,compI)
 
     % calculate posterior probability, logBayes factor
     [postProp,logBayes]=pcm_componentPosterior(likelihood,compI);
-
     % knockIN, knockOUT
     [knockIN,knockOUT]=pcm_knockModels(likelihood,compI);
-
     K.postProp=postProp(:);
     K.logBayes=logBayes(:);
     K.knockIN=knockIN(:);
@@ -6588,7 +6626,7 @@ function T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm)
     % Crossvalidated model comparision:
     [T,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm',algorithm);
     [Tcross,thetaCr] = pcm_fitModelGroupCrossval(Data,M,partVec,condVec,'runEffect',runEffect,'groupFit',theta_hat,'fitScale',1,'fitAlgorithm',algorithm);
-    [Tcross2,thetaCr2] = pcm_fitModelGroupCrossval(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm',algorithm);
+ %   [Tcross2,thetaCr2] = pcm_fitModelGroupCrossval(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm',algorithm);
     fprintf('Crossvalidated fit with %s algorithm done.\n',algorithm);
 
     T.cross_likelihood = Tcross.likelihood;
@@ -6657,10 +6695,10 @@ for p=sn
     for i=1:numel(unique(partVec{p}))
         data = [data; A(:,:,i)];
     end
-    Gcv3(:,:,p) = crossval_estG(data,Z,condVec{p});
+    Gcv(:,:,p) = crossval_estG(data,Z,condVec{p});
     b = pinv(Z)*data;
    % G2 = cov(b');
-    C.r_crossval3(p,1) = calcCorr(pcm_makePD(Gcv3(:,:,p))); % this is the correct one
+    C.r_crossval(p,1) = calcCorr(pcm_makePD(Gcv(:,:,p))); % this is the correct one
     % calculate correlation of mean pattern
     % make even and odd mean patterns for 1st / 2nd
     tmp11 = mean(meanP(1,:,[1:2:8]),3);
@@ -6669,13 +6707,12 @@ for p=sn
     tmp22 = mean(meanP(2,:,[2:2:8]),3);
     cor1 = corr(tmp11',tmp22');
     cor2 = corr(tmp12',tmp21');
-    C.r_crossval_meanOnly_evenOdd(p,1) = mean([cor1 cor2]); 
+    C.r_crossval_mean(p,1) = mean([cor1 cor2]); 
     % calculate correlation of Gs for 1st / 2nd
     RDM = rsa_squareRDM(rsa.distanceLDC(data,partVec{p},condVec{p}));
     Exe{1}=RDM(1:6,1:6);
     Exe{2}=RDM(7:12,7:12);
-    C.RDM_corrRSA(p,1)  = rsa_calcCorrRDMs(Exe);
-    C.RDM_corrDist(p,1) = rsa_calcDistCorrRDMs(Exe);
+  %  C.RDM_corrRSA(p,1)  = rsa_calcCorrRDMs(Exe);
     % calculate the covariance structure
     cov_tmp=pcm_estGCrossval(data,partVec{p},condVec{p});
     C.cov(p,:)=rsa_vectorizeIPMfull(cov_tmp);
@@ -6757,81 +6794,87 @@ switch(type)
         % calculate within session split-half correlation
         X = indicatorMatrix('identity_p',condVec);
         G = crossval_estG(data,X,partVec);
-        mPat=[];
+        sPat=[]; % sequence pattern
+        mPat=[]; % mean pattern
         split=mod(partVec,2);
-        % new
-        for i=1:numel(unique(partVec))
-            Xa = X(partVec==i,:);
-            Ya = data(partVec==i,:);
-            A(:,:,i) = pinv(Xa)*Ya;
+        partN=numel(unique(partVec));
+        condN=numel(unique(condVec));    
+        % subtract the run mean
+        data_rm = zeros(size(data));
+        for i=1:partN
+            data_rm(partVec==i,:) = bsxfun(@minus,data(partVec==i,:),sum(data(partVec==i,:),1)/condN);
         end;
-      %  subtract the mean across conditions
-        A=bsxfun(@minus,A,sum(A,1)/numel(unique(condVec)));
-        % reshape data back
-        data=[];
-        for i=1:numel(unique(partVec))
-            data = [data; A(:,:,i)];
-        end
-        % end of new
+        sPat(:,:,1)     = pinv(X(split==0,:))*data_rm(split==0,:);
+        sPat(:,:,2)     = pinv(X(split==1,:))*data_rm(split==1,:);
+        COR             = corr(sPat(:,:,1)',sPat(:,:,2)');
+        R.corr_vox      = fisherinv(mean(fisherz(diag(COR))));
         mPat(:,:,1)     = pinv(X(split==0,:))*data(split==0,:);
-        mPat(:,:,2)     = pinv(X(split==1,:))*data(split==1,:);
-        COR             = corr(mPat(:,:,1)',mPat(:,:,2)');
-        R.corr          = fisherinv(mean(fisherz(diag(COR))));
-        meanPat         = mean(mPat,1);             % Mean activity pattern over sequences
-        mPat            = bsxfun(@minus,mPat,meanPat);  % Subtract out mean
-        COR             = corr(mPat(:,:,1)',mPat(:,:,2)');
-        R.corr_noMean   = fisherinv(mean(fisherz(diag(COR))));
-        R.corr_mean     = corr(meanPat(:,:,1)',meanPat(:,:,2)');
-        
+        mPat(:,:,2)     = pinv(X(split==0,:))*data(split==1,:);
+        COR_mean        = corr(mPat(:,:,1)',mPat(:,:,2)');
+        R.corr_voxMean  = fisherinv(mean(fisherz(diag(COR_mean))));
+        % create RDMs
+        RDM(1,:)        = rsa.distanceLDC(data_rm(split==0,:),partVec(split==0,:),condVec(split==0,:));
+        RDM(2,:)        = rsa.distanceLDC(data_rm(split==1,:),partVec(split==1,:),condVec(split==1,:));
+        % normalize
+        RDM_norm        = normalizeX(RDM);
+        corrRDM         = RDM_norm*RDM_norm';
+        R.corr_RDM      = corrRDM(2);
+        R.corr_RDMAll   = 1;
     case 'acrossSes'
         Y     = [data{1};data{2}];
-        part  = [partVec{1};partVec{2}];
+        %part  = [partVec{1};partVec{2}];
+        part  = [partVec{1};partVec{2}+max(partVec{1})];
         cond  = [condVec{1};condVec{2}];
+        partN = numel(unique(part));
+        condN = numel(unique(cond));
         ses   = [ones(size(partVec{1}));ones(size(partVec{2}))*2];
         X     = indicatorMatrix('identity_p',cond);
         G = crossval_estG(Y,X,ses);
-        mPat=[];  
-        % new
-        for p=1:size(partVec,2)
-            for i=1:numel(unique(partVec{p}))
-                Xa = X(partVec{p}==i,:);
-                Ya = data{p}(partVec{p}==i,:);
-                A(:,:,i) = pinv(Xa)*Ya;
-            end;
-            %  subtract the mean across conditions
-            A=bsxfun(@minus,A,sum(A,1)/numel(unique(condVec{p})));
-            % reshape data back
-            data{p}=[];
-            for i=1:numel(unique(partVec{p}))
-                data{p} = [data{p}; A(:,:,i)];
-            end
-        end
-        % end of new
+        sPat=[];  % sequence pattern
+        % subtract the run mean
+        data_rm = zeros(size(Y));
+        for i=1:partN
+            data_rm(part==i,:) = bsxfun(@minus,Y(part==i,:),sum(Y(part==i,:),1)/condN);
+        end;
         % Do split half correlations
         split = mod(part,2);
-        mPat(:,:,1) = pinv(X(ses==1 & split==0,:)) * data{1}(split(ses==1)==0,:);
-        mPat(:,:,2) = pinv(X(ses==1 & split==1,:)) * data{1}(split(ses==1)==1,:);
-        mPat(:,:,3) = pinv(X(ses==2 & split==0,:)) * data{2}(split(ses==2)==0,:);
-        mPat(:,:,4) = pinv(X(ses==2 & split==1,:)) * data{2}(split(ses==2)==1,:);
+        sPat(:,:,1) = pinv(X(ses==1 & split==0,:)) * data_rm(ses==1 & split==0,:);
+        sPat(:,:,2) = pinv(X(ses==1 & split==1,:)) * data_rm(ses==1 & split==1,:);
+        sPat(:,:,3) = pinv(X(ses==2 & split==0,:)) * data_rm(ses==2 & split==0,:);
+        sPat(:,:,4) = pinv(X(ses==2 & split==1,:)) * data_rm(ses==2 & split==1,:);
         COR=[];
-        COR(:,:,1)  = corr(mPat(:,:,1)',mPat(:,:,3)');
-        COR(:,:,2)  = corr(mPat(:,:,1)',mPat(:,:,4)');
-        COR(:,:,3)  = corr(mPat(:,:,2)',mPat(:,:,3)');
-        COR(:,:,4)  = corr(mPat(:,:,2)',mPat(:,:,4)');
-        R.corr      = fisherinv(mean(diag(mean(fisherz(COR),3))));
-        meanPat     = mean(mPat,1);             % Mean activity pattern over fingers
-        mPat        = bsxfun(@minus,mPat,meanPat);  % Subtract out mean
-        COR=[];
-        COR(:,:,1)  = corr(mPat(:,:,1)',mPat(:,:,3)');
-        COR(:,:,2)  = corr(mPat(:,:,1)',mPat(:,:,4)');
-        COR(:,:,3)  = corr(mPat(:,:,2)',mPat(:,:,3)');
-        COR(:,:,4)  = corr(mPat(:,:,2)',mPat(:,:,4)');
-        R.corr_noMean = fisherinv(mean(diag(mean(fisherz(COR),3))));
-        COR=[];
-        COR(1) = corr(meanPat(:,:,1)',meanPat(:,:,3)');
-        COR(2) = corr(meanPat(:,:,1)',meanPat(:,:,4)');
-        COR(3) = corr(meanPat(:,:,2)',meanPat(:,:,3)');
-        COR(4) = corr(meanPat(:,:,2)',meanPat(:,:,4)');
-        R.corr_mean = fisherinv(mean(fisherz(COR)));
+        COR(:,:,1)  = corr(sPat(:,:,1)',sPat(:,:,3)');
+        COR(:,:,2)  = corr(sPat(:,:,1)',sPat(:,:,4)');
+        COR(:,:,3)  = corr(sPat(:,:,2)',sPat(:,:,3)');
+        COR(:,:,4)  = corr(sPat(:,:,2)',sPat(:,:,4)');
+        R.corr_vox  = fisherinv(mean(diag(mean(fisherz(COR),3))));
+        % with mean present   
+        mPat(:,:,1) = pinv(X(ses==1 & split==0,:)) * Y(ses==1 & split==0,:);
+        mPat(:,:,2) = pinv(X(ses==1 & split==1,:)) * Y(ses==1 & split==1,:);
+        mPat(:,:,3) = pinv(X(ses==2 & split==0,:)) * Y(ses==2 & split==0,:);
+        mPat(:,:,4) = pinv(X(ses==2 & split==1,:)) * Y(ses==2 & split==1,:);
+        COR_mean=[];
+        COR_mean(:,:,1)  = corr(mPat(:,:,1)',mPat(:,:,3)');
+        COR_mean(:,:,2)  = corr(mPat(:,:,1)',mPat(:,:,4)');
+        COR_mean(:,:,3)  = corr(mPat(:,:,2)',mPat(:,:,3)');
+        COR_mean(:,:,4)  = corr(mPat(:,:,2)',mPat(:,:,4)');
+        R.corr_voxMean   = fisherinv(mean(diag(mean(fisherz(COR_mean),3))));
+        
+        % create RDMs
+        RDM(1,:)    = rsa.distanceLDC(data_rm(ses==1 & split==0,:),part(ses==1 & split==0,:),cond(ses==1 & split==0,:));
+        RDM(2,:)    = rsa.distanceLDC(data_rm(ses==1 & split==1,:),part(ses==1 & split==1,:),cond(ses==1 & split==1,:));
+        RDM(3,:)    = rsa.distanceLDC(data_rm(ses==2 & split==0,:),part(ses==1 & split==0,:),cond(ses==2 & split==0,:));
+        RDM(4,:)    = rsa.distanceLDC(data_rm(ses==2 & split==1,:),part(ses==2 & split==1,:),cond(ses==2 & split==1,:));
+        % normalize
+        RDM_norm    = normalizeX(RDM);
+        corrRDM     = RDM_norm*RDM_norm';
+        R.corr_RDM  = mean([corrRDM(1,3),corrRDM(1,4),corrRDM(2,3),corrRDM(2,4)]);
+        % from all data (not splithalf)
+        RDM_all(1,:)    = rsa.distanceLDC(Y(ses==1,:),part(ses==1,:),cond(ses==1,:));
+        RDM_all(2,:)    = rsa.distanceLDC(Y(ses==2,:),part(ses==2,:),cond(ses==2,:));
+        RDM_normAll     = normalizeX(RDM_all);
+        corrRDM         = RDM_normAll*RDM_normAll';
+        R.corr_RDMAll   = corrRDM(2);
+        
 end
 end

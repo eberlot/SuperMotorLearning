@@ -1,8 +1,8 @@
 function varargout=sml1_imana_prep(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 behavDir        =[baseDir '/behavioral_data/data'];            
 imagingDir      =[baseDir '/imaging_data'];              
 imagingDirRaw   =[baseDir '/imaging_data_raw'];           
@@ -1747,46 +1747,58 @@ loc_AC     = {[-112 -165 -176],...
         % 2:   Trained seq (2nd) vs. rest
         % 3:   Untrained seq (1st) vs. rest
         % 4:   Untrained seq (2nd) vs. rest
- 
+        sn=[4:9,11:31];
+        sessN=[1:4];
         vararginoptions(varargin,{'sn','sessN'});
         cwd = pwd;
         % Loop through subjects.
         for ss = sessN
-        for s = sn
-            glmSubjDir = [glmFoSExDir{ss} filesep subj_name{s}];
-            cd(glmSubjDir);
-
-            load SPM;
-            SPM = rmfield(SPM,'xCon');
-            T   = load('SPM_info.mat');
-
-            %_____t contrast for trained seq 1st vs. rest
-            con                                = zeros(1,size(SPM.xX.X,2));
-            con(:,T.seqNumb<7 & T.FoSEx == 1) = 1;
-            con                                = con/sum(con);
-            SPM.xCon(1)                        = spm_FcUtil('Set',sprintf('TrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
-            
-            %_____t contrast for trained seq 2nd vs. rest
-            con                                 = zeros(1,size(SPM.xX.X,2));
-            con(:,T.seqNumb<7 & T.FoSEx == 2)   = 1;
-            con                                 = con/sum(con);
-            SPM.xCon(2)                         = spm_FcUtil('Set',sprintf('TrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
-
-            %_____t contrast for untrained seq 1st vs. rest
-            con                                = zeros(1,size(SPM.xX.X,2));
-            con(:,T.seqNumb>6 & T.FoSEx == 1) = 1;
-            con                                = con/sum(con);
-            SPM.xCon(3)                        = spm_FcUtil('Set',sprintf('UntrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
-            
-            %_____t contrast for untrained seq 2nd vs. rest
-            con                                 = zeros(1,size(SPM.xX.X,2));
-            con(:,T.seqNumb>6 & T.FoSEx == 2)   = 1;
-            con                                 = con/sum(con);
-            SPM.xCon(4)                         = spm_FcUtil('Set',sprintf('UntrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
-            %____do the constrasts
-            SPM = spm_contrasts(SPM,[1:length(SPM.xCon)]);
-            save('SPM.mat','SPM');
-            
+            for s = sn
+                glmSubjDir = [glmFoSExDir{ss} filesep subj_name{s}];
+                cd(glmSubjDir);
+                
+                load SPM;
+                SPM = rmfield(SPM,'xCon');
+                T   = load('SPM_info.mat');
+                
+                % (1) t contrasts each sequence against rest
+                % (1:12, per repetition)
+                for c=1:numel(num_seq)
+                    for exe=1:2
+                        con = zeros(1,size(SPM.xX.X,2));
+                        con(:,T.seqNumb==c & T.FoSEx==exe) = 1;
+                        con = con/sum(con);
+                        SPM.xCon((exe-1)*12+c) = spm_FcUtil('Set',sprintf('Seq%d-exe%d',c,exe), 'T', 'c',con',SPM.xX.xKXs);
+                    end
+                end
+                
+                %_____t contrast for trained seq 1st vs. rest
+                con                                = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb<7 & T.FoSEx == 1) = 1;
+                con                                = con/sum(con);
+                SPM.xCon(25)                        = spm_FcUtil('Set',sprintf('TrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for trained seq 2nd vs. rest
+                con                                 = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb<7 & T.FoSEx == 2)   = 1;
+                con                                 = con/sum(con);
+                SPM.xCon(26)                         = spm_FcUtil('Set',sprintf('TrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for untrained seq 1st vs. rest
+                con                                = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx == 1) = 1;
+                con                                = con/sum(con);
+                SPM.xCon(27)                        = spm_FcUtil('Set',sprintf('UntrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for untrained seq 2nd vs. rest
+                con                                 = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx == 2)   = 1;
+                con                                 = con/sum(con);
+                SPM.xCon(28)                         = spm_FcUtil('Set',sprintf('UntrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
+                %____do the constrasts
+                SPM = spm_contrasts(SPM,[1:length(SPM.xCon)]);
+                save('SPM.mat','SPM');
+                
                 % rename contrast images and spmT images
                 conName = {'con','spmT'};
                 for i=1:length(SPM.xCon),
@@ -1796,7 +1808,7 @@ loc_AC     = {[-112 -165 -176],...
                         movefile(oldName{i},newName{i});
                     end
                 end
-        end; % sn
+            end; % sn
         end; % sessN
         cd(cwd);
         

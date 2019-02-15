@@ -508,97 +508,101 @@ switch(what)
         vararginoptions(varargin,{'sn','sessN'});
 
         cWD = cd;
-        for s = sn
-            % Load subject surface searchlight results (1 vol per paired conds)
-            LDC_file            = fullfile(glmSessDir{sessN},subj_name{s},sprintf('%s_sess%d_LDC.nii',subj_name{s},sessN)); % searchlight nifti
-            [subjDir,fname,ext] = fileparts(LDC_file);
-            cd(subjDir);
-
-            vol     = spm_vol([fname ext]);
-            vdat    = spm_read_vols(vol); % is searchlight data
-            
-            % average across all paired dists
-            Y.LDC   = nanmean(vdat,4);
-            % prep output file
-            Y.dim   = vol(1).dim;
-            Y.dt    = vol(1).dt;
-            Y.mat   = vol(1).mat;
-            Y.fname   = sprintf('%s_sess%d_dist.nii',subj_name{s},sessN);
-            
-            % separate trained / untrained dists
-            indMat = indicatorMatrix('allpairs',[1:12]);
-            trainInd = [];
-            untrainInd = [];
-            crossInd = [];
-            for i=1:length(indMat)
-                if sum(any(indMat(i,num_train),1))==2
-                    trainInd=[trainInd;i]; 
-                elseif sum(any(indMat(i,num_untrain),1))==2
-                    untrainInd=[untrainInd;i];
-                elseif sum(any(indMat(i,num_train),1))==1 & sum(any(indMat(i,num_untrain),1))==1
-                    crossInd=[crossInd;i];
-                else
+        for ss=sessN
+            for s = sn
+                % Load subject surface searchlight results (1 vol per paired conds)
+                LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_LDC_recalc.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
+                [subjDir,fname,ext] = fileparts(LDC_file);
+                cd(subjDir);
+                
+                vol     = spm_vol([fname ext]);
+                vdat    = spm_read_vols(vol); % is searchlight data
+                
+                % average across all paired dists
+                Y.LDC   = nanmean(vdat,4);
+                % prep output file
+                Y.dim   = vol(1).dim;
+                Y.dt    = vol(1).dt;
+                Y.mat   = vol(1).mat;
+                Y.fname   = sprintf('%s_sess%d_dist.nii',subj_name{s},ss);
+                
+                % separate trained / untrained dists
+                indMat = indicatorMatrix('allpairs',[1:12]);
+                trainInd = [];
+                untrainInd = [];
+                crossInd = [];
+                for i=1:length(indMat)
+                    if sum(any(indMat(i,num_train),1))==2
+                        trainInd=[trainInd;i];
+                    elseif sum(any(indMat(i,num_untrain),1))==2
+                        untrainInd=[untrainInd;i];
+                    elseif sum(any(indMat(i,num_train),1))==1 & sum(any(indMat(i,num_untrain),1))==1
+                        crossInd=[crossInd;i];
+                    else
+                    end
                 end
+                
+                trainDist = vdat(:,:,:,trainInd);
+                untrainDist = vdat(:,:,:,untrainInd);
+                crossDist = vdat(:,:,:,crossInd);
+                
+                T = Y;
+                U = Y;
+                Z = Y;
+                T.LDC = nanmean(trainDist,4);
+                U.LDC = nanmean(untrainDist,4);
+                Z.LDC = nanmean(crossDist,4);
+                T.fname = sprintf('%s_sess%d_dist_trained.nii',subj_name{s},ss);
+                U.fname = sprintf('%s_sess%d_dist_untrained.nii',subj_name{s},ss);
+                Z.fname = sprintf('%s_sess%d_dist_cross.nii',subj_name{s},ss);
+                
+                % save outputs
+                spm_write_vol(Y,Y.LDC);
+                spm_write_vol(T,T.LDC);
+                spm_write_vol(U,U.LDC);
+                spm_write_vol(Z,Z.LDC);
+                fprintf('Done %s_sess%d \n',subj_name{s},ss)
+                
+                clear vol vdat LDC Y T U Z
+                
             end
-            
-            trainDist = vdat(:,:,:,trainInd);
-            untrainDist = vdat(:,:,:,untrainInd);
-            crossDist = vdat(:,:,:,crossInd);
-            
-            T = Y;
-            U = Y;
-            Z = Y;
-            T.LDC = nanmean(trainDist,4);
-            U.LDC = nanmean(untrainDist,4);
-            Z.LDC = nanmean(crossDist,4);
-            T.fname = sprintf('%s_sess%d_dist_trained.nii',subj_name{s},sessN);
-            U.fname = sprintf('%s_sess%d_dist_untrained.nii',subj_name{s},sessN);
-            Z.fname = sprintf('%s_sess%d_dist_cross.nii',subj_name{s},sessN);
-            
-            % save outputs
-            spm_write_vol(Y,Y.LDC);
-            spm_write_vol(T,T.LDC);
-            spm_write_vol(U,U.LDC);
-            spm_write_vol(Z,Z.LDC);
-            fprintf('Done %s_sess%d \n',subj_name{s},sessN)
-            
-            clear vol vdat LDC Y T U Z
-            
         end
         cd(cWD);  % return to working directory
     case 'SEARCH_dist_surf'                                                 % STEP 4.4a   :  Map searchlight results (.nii) onto surface (.metric)
         % map volume images to metric file and save them in individual surface folder
-        sn  = 1;
-        sessN = 1;   
+        sn      = [4:9,11:31];
+        sessN   = [1:4];   
         fileList = {'dist','dist_trained','dist_untrained','dist_cross'}; % for dist or repsup
         glmDir = glmSessDir;
         outname = 'dist'; % dist or dist_repsup
         vararginoptions(varargin,{'sn','sessN','fileList','glmDir','outname'});
-
-        for s = sn
-            for h=1:2
-                caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
-                white     = caret_load(fullfile(caretSDir,[hem{h} '.WHITE.coord']));
-                pial      = caret_load(fullfile(caretSDir,[hem{h} '.PIAL.coord']));
-                
-                for f = 1:length(fileList)
-                    images{f}    = fullfile(glmDir{sessN},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},sessN,fileList{f}));
-                    column_name{f} = fullfile(sprintf('Sess%d_%s.nii',sessN,fileList{f}));
-                end;    % filename
-                outfile   = sprintf('%s_sess%d_%s.metric',subj_name{s},sessN,outname);
-                M         = caret_vol2surf_own(white.data,pial.data,images,'ignore_zeros',1);
-                M.column_name = column_name;
-                caret_save(fullfile(caretSDir,outfile),M);
-                fprintf('Done subj %d sess %d hemi %d \n',s,sessN,h);
-            end;    % hemi
-        end;    % subj
+        
+        for ss = sessN
+            for s = sn
+                for h=1:2
+                    caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
+                    white     = caret_load(fullfile(caretSDir,[hem{h} '.WHITE.coord']));
+                    pial      = caret_load(fullfile(caretSDir,[hem{h} '.PIAL.coord']));
+                    
+                    for f = 1:length(fileList)
+                        images{f}    = fullfile(glmDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,fileList{f}));
+                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,fileList{f}));
+                    end;    % filename
+                    outfile   = sprintf('%s_sess%d_%s.metric',subj_name{s},ss,outname);
+                    M         = caret_vol2surf_own(white.data,pial.data,images,'ignore_zeros',1);
+                    M.column_name = column_name;
+                    caret_save(fullfile(caretSDir,outfile),M);
+                    fprintf('Done subj %d sess %d hemi %d \n',s,ss,h);
+                end;    % hemi
+            end;    % subj
+        end; % sessN
     case 'SEARCH_group_make'                                                % STEP 4.5   :  Make group metric files by condensing subjec contrast metric files
         % Calculate group metric files from the searchlight results. 
         % Takes the 4 contrast results ('dist','dist_trained','dist_untrained','dist_cross') across
         % subjects and makes a group level metric file that contains each
         % subject's data for that contrast type.
         sessN=1;
-        sn=[1:7];
+        sn=[4:9,11:31];
         name = 'dist';
         inputcol   = [1 2 3 4];
         replaceNaN = [1 1 1 1];
@@ -636,7 +640,7 @@ switch(what)
         % t-score, and finally the z-score 
         % subject's data for that contrast type.    
         sessN=1;
-        sn=[1:7];
+        sn=[4:9,11:31];
         SPMname={'dist_all','dist_trained','dist_untrained','dist_cross'};
         name='dist';
         sqrtTransform=[1,1,1,1]; % Should you take ssqrt before submitting?
@@ -785,7 +789,44 @@ switch(what)
         plot(x,S(:,2));
         set(gca,'Box','off','XLim',[1 length(x)],'YLim',[-1.5 1.5]);
         set(gcf,'PaperPosition',[2 2 5 3]);
-   
+    case 'SEARCH_recalc'
+        % need to recalculate searchlights for s04-s28 (old prewhitening)
+        sn=[4:9,11:31];
+         for s=sn
+            for ss=1:4
+                % load SPM
+                glmDir  = fullfile(glmSessDir{ss},subj_name{s});
+                cd(glmDir);
+                load SPM;
+                idx = mean(diag(SPM.xX.Bcov));
+                V = spm_vol(fullfile(sprintf('%s_sess%d_LDC.nii',subj_name{s},ss)));
+                V2 = spm_read_vols(V);
+                if s<29 % for new subjects no need
+                    V3 = V2./idx;
+                else
+                    V3 = V2;
+                end
+                newName = sprintf('%s_sess%d_LDC_recalc.nii',subj_name{s},ss);
+                for i=1:size(V,1)
+                    Z=NaN(V(1).dim);
+                    %[d f t m]=spm_fileparts(outFiles{i});
+                    outFiles{i}=fullfile(cd,sprintf('%s,%d',newName,i));
+                    [d f t m]=spm_fileparts(outFiles{1});
+                    Vo      = struct(...
+                        'fname',    fullfile(d,[f t]),...
+                        'dim',      V(1).dim,...
+                        'dt',       [spm_type('float32') spm_platform('bigend')],...
+                        'mat',      V(i).mat,...
+                        'n',        [i 1],...
+                        'descrip',  V(i).descrip);
+                    Z=V3(:,:,:,i);            % Project back into voxel space
+                    spm_write_vol(Vo,Z);
+                end; % per distance pair
+                fprintf('Done:\t %s   sess-%d\n',subj_name{s},ss);
+            end; % session
+        end; % subject
+        
+        
     case 'SEARCH_dist_corr'
         % run correlation distance as searchlight
         sn = [4:9,11:25];
@@ -1531,14 +1572,14 @@ switch(what)
             end;
         end
     case 'SURF_mapTessels'
-        sn=[5:9,11:18];
+        sn=[4:9,11:31];
         sessN=[1:4];
         parcelType='162tessels';
         betaChoice='multi';
-        thres=[0 0.002];
+        thres=[0 0.01];
         vararginoptions(varargin,{'sn','sessN','parcelType','betaChoice','thres'});
         for ss=sessN
-            T=load(fullfile(regDir,sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)));
+            T=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)));
             for s=sn
                 load(fullfile(regDir,sprintf('%s_%s_regions.mat',subj_name{s},parcelType))); % load region file into R
                 for h=1:2
@@ -1562,15 +1603,16 @@ switch(what)
                     name={sprintf('dist_sess%d',ss)};
                     R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
                     caret_save(fullfile(caretSubjDir,sprintf('%s.Dist_%s_sess%d.RGB_paint',hem{h},parcelType,ss)),R);
+                    fprintf('Done sess-%d %s\n',ss,subj_name{s});
                 end
             end
         end
     case 'SURF_mapTessels_group'
         %sn=[5,7,8,9,11,13,14,15,16];
-        sn=[4,5,7,8,9,11,13,14,15,16,17,18]; % 1-3: different resolution, 6, 12- excessive movement, 10- no session 4
+        sn=[4:9,11:31]; % 1-3: different resolution, 6, 12- excessive movement, 10- no session 4
         sessN=[1:4];
         regType='162tessels';
-        thres=[-0.002 0.002];
+        thres=[-0.01 0.01];
         vararginoptions(varargin,{'sn','sessN','parcelType','betaChoice','thres'});
         
         for ss=sessN
@@ -1580,12 +1622,10 @@ switch(what)
                     count=count+1; % count of subjects
                     caretSubjDir=fullfile(caretDir,sprintf('x%s',subj_name{s}),hemName{h});
                     
-                    S_rgb=caret_load(fullfile(caretSubjDir,sprintf('%s.Dist_%s_sess%d.RGB_paint',hem{h},regType,ss)));
-                    
+                    S_rgb=caret_load(fullfile(caretSubjDir,sprintf('%s.Dist_%s_sess%d.RGB_paint',hem{h},regType,ss)));            
                     Group_x(:,count)=S_rgb.data(:,1);
                     Group_y(:,count)=S_rgb.data(:,2);
                     Group_z(:,count)=S_rgb.data(:,3);                  
-
                 end
                 S_group=S_rgb;
                 % difference between the two
@@ -1599,10 +1639,10 @@ switch(what)
             end
         end
     case 'SURF_mapTessels_group_sessDiff'
-        sn=[4,5,7,8,9,11,13,14,15,16,17,18];
+        sn=[4:9,11:31];
         sessTr=[1:3];
         regType='162tessels';
-        thres=[-0.002 0.002];
+        thres=[-0.01 0.01];
         vararginoptions(varargin,{'sn','sessN','parcelType','betaChoice','thres'});
         
         for ss=sessTr
@@ -3030,11 +3070,12 @@ switch(what)
         KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fing%s.mat',parcelType,fingType)));
         name = {'FF','AF','FT','Chu','ST','TS','US'};
         fig_num=0;
+        
         for r = reg
             % knock-in
             figure(fig_num+1);
             for s=1:4
-                a=getrow(KK,KK.roi==r&KK.sessN==s&KK.sn>3);
+                a=getrow(KK,KK.roi==r&KK.sessN==s);
                 subplot(1,4,s)
                 plt.bar(a.indx,a.knockIN);
                 
@@ -3052,7 +3093,7 @@ switch(what)
             % knock-out
             figure(fig_num+2);
             for s=1:4
-                a=getrow(KK,KK.roi==r&KK.sessN==s&KK.sn>3);
+                a=getrow(KK,KK.roi==r&KK.sessN==s);
                 subplot(1,4,s)
                 plt.bar(a.indx,a.knockOUT);
                 if s==1
@@ -3102,7 +3143,22 @@ switch(what)
             end
             fig_num=fig_num+5;  
         end    
-    case 'PCM_construct_ModelStruct'  
+    case 'PCM_PLOT_modelFamily_allSess'
+        %plots knock-IN / OUT / posterior probability
+        parcelType='Brodmann';
+        reg=1;
+        fingType='Count';
+        var='logBayes';
+        vararginoptions(varargin,{'reg','parcelType','var'});
+        KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fing%s.mat',parcelType,fingType)));
+        for r=reg
+            figure
+            plt.bar(KK.indx,KK.(var),'split',KK.sessN,'style',stySess,'subset',KK.roi==r);
+            ylabel(var);
+            % set(gca,'XTickLabel',name);
+            title(regname{r});
+        end
+    case 'PCM_construct_ModelStruct'
 
         parcelType='Brodmann';
         vararginoptions(vararin,{'parcelType'});
@@ -3246,7 +3302,6 @@ switch(what)
         save(fullfile(pcmDir,sprintf('ModelFamilyComb_seqType_%s.mat',parcelType)),'Comb');
         save(fullfile(pcmDir,sprintf('ModelFamily_Fit_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','AllReg');
         save(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','KK');
-    
     case 'PCM_FingSeq_modelFamily'
         runEffect  = 'fixed';
         beta_choice = 'mw';
@@ -3381,7 +3436,7 @@ switch(what)
         roi=[1:5,7,8];
         
         vararginoptions(varargin,{'parcelType','sessN','roi'});
-        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_NEW_%s.mat',parcelType)));
+        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fingCount.mat',parcelType)));
         
         indx=1;
         for r = roi
@@ -3550,7 +3605,7 @@ switch(what)
                 end
             end
         end        
-    case 'PLOT_PCM_modelFamily_seqType'
+    case 'PLOT_PCM_modelFamily_seqType' % this relevant (Feb 14 2019)
         %plots knock-IN / OUT / posterior probability
         reg=1;
         parcelType='Brodmann'; % Brodmann or 162tessels
