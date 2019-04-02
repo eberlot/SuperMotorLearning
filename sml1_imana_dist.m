@@ -4,7 +4,7 @@ function varargout=sml1_imana_dist(what,varargin)
 %baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
 baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 betaDir         =[baseDir '/betas'];
-behavDir        =[baseDir '/behavioral_data/data'];
+behavDir        =[baseDir '/behavioral_data/analyze'];
 connectDir      =[baseDir '/connectivity'];
 clusterDir      =[connectDir '/cluster'];
 transformDir    =[connectDir '/transform'];
@@ -1862,50 +1862,105 @@ switch(what)
         sessN=[1:4];
         parcelType='Brodmann';
         vararginoptions(varargin,{'roi','sessN','parcelType'});
-       
+        
         Dim=[];
         for ss=sessN
             T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            fprintf('Reg:\t');
             for r=roi
                 for s=sn
                     Tt=getrow(T,T.region==r & T.SN==s);
                     % get SPM info
                     TI=load(fullfile(glmSessDir{ss},subj_name{s},'SPM_info'));
                     for st=1:2 % trained / untrained
-                        % calculate identity matrix for 6 sequences
-                        ind=repmat(indicatorMatrix('identity',num_train),8,1);
                         % extract betas for seqType in question (st)
                         tmp=Tt.betaW{:};
                         betas=tmp(TI.seqType==st,:);
-                        % extract condition / partition vectors
-                        condVec=TI.seqNumb(TI.seqType==st);
+                        % extract partition vectors
                         partVec=TI.run(TI.seqType==st);
-                        [D,dD]=crossval_estDim(betas,ind,num_train,partVec);
-                        [corrC,dC]=crossval_estDimCorr(betas,ind,num_train,partVec);
+                        % calculate identity matrix for 6 sequences
+                        ind=repmat(indicatorMatrix('identity',num_train),8,1);
                         
-                        N.dim=D(:);
-                        N.dimD=dD(:);
-                        N.corr=corrC(:);
-                        N.corrD=dC(:);
-                        
-                        N.indDim=[1:6]';
-                        N.sn=ones(size(N.corr))*s;
-                        N.roi=ones(size(N.corr))*r;
-                        N.regType=ones(size(N.corr))*Tt.regType;
-                        N.regSide=ones(size(N.corr))*Tt.regSide;
-                        N.sessN=ones(size(N.corr))*ss;
-                        N.seqType=ones(size(N.corr))*st;
-                        
+                        [corrC_ms,dC_ms]=crossval_estDimCorr(betas,ind,num_train,partVec); % subtracting the mean across conditions
+                        [corrC_wm,dC_wm]=crossval_estDimCorr(betas,ind,num_train,partVec,'meanSubtract',0); % keep the mean pattern
+                        % create structure
+                        N.corr_ms           = corrC_ms(1:5)';
+                        N.corr_ms_norm      = (corrC_ms(1:5)./corrC_ms(5))'; % normalised version
+                        N.corrDiff_ms       = dC_ms(1:5)';
+                        N.corrDiff_ms_norm  = (dC_ms(1:5)./dC_ms(1))';
+                        N.corr_wm           = corrC_wm(1:5)';
+                        N.corr_wm_norm      = (corrC_wm(1:5)./corrC_wm(5))'; % normalised version
+                        N.corrDiff_wm       = dC_wm(1:5)';
+                        N.corrDiff_wm_norm  = (dC_wm(1:5)./dC_wm(1))';
+                        N.indDim            = (1:5)';
+                        N.sn                = ones(size(N.corr_ms))*s;
+                        N.roi               = ones(size(N.corr_ms))*r;
+                        N.regType           = ones(size(N.corr_ms))*Tt.regType;
+                        N.regSide           = ones(size(N.corr_ms))*Tt.regSide;
+                        N.sessN             = ones(size(N.corr_ms))*ss;
+                        N.seqType           = ones(size(N.corr_ms))*st;
                         
                         Dim=addstruct(Dim,N);
                     end
                 end
+                fprintf('%d.',r);
             end
-            fprintf('Done sess-%d \n',ss);
+            fprintf('\t...done sess-%d.\n',ss);
         end
 
         % save dimensionality
         save(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)),'-struct','Dim');
+    case 'CALC_dimensions_overall'
+         % calculate dimensions overall for the 12 sequences
+        roi=1:16;
+        sn=[4:9,11:31];
+        sessN=1:4;
+        parcelType='Brodmann';
+        vararginoptions(varargin,{'roi','sessN','parcelType'});
+        
+        Dim=[];
+        for ss=sessN
+            T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            fprintf('Reg:\t');
+            for r=roi
+                for s=sn
+                    Tt=getrow(T,T.region==r & T.SN==s);
+                    % get SPM info
+                    TI=load(fullfile(glmSessDir{ss},subj_name{s},'SPM_info'));
+                    % extract betas for seqType in question (st)
+                    betas=Tt.betaW{:};
+                    % extract partition vectors
+                    partVec=TI.run;
+                    % calculate identity matrix for all 12 sequences
+                    ind=repmat(indicatorMatrix('identity',1:12),8,1);
+                    
+                    [corrC_ms,dC_ms]=crossval_estDimCorr(betas,ind,1:12,partVec); % subtracting the mean across conditions
+                    [corrC_wm,dC_wm]=crossval_estDimCorr(betas,ind,1:12,partVec,'meanSubtract',0); % keep the mean pattern
+                    % create structure
+                    N.corr_ms           = corrC_ms(1:11)';
+                    N.corr_ms_norm      = (corrC_ms(1:11)./corrC_ms(11))'; % normalised version
+                    N.corrDiff_ms       = dC_ms(1:11)';
+                    N.corrDiff_ms_norm  = (dC_ms(1:11)./dC_ms(1))';
+                    N.corr_wm           = corrC_wm(1:11)';
+                    N.corr_wm_norm      = (corrC_wm(1:11)./corrC_wm(11))'; % normalised version
+                    N.corrDiff_wm       = dC_wm(1:11)';
+                    N.corrDiff_wm_norm  = (dC_wm(1:11)./dC_wm(1))';
+                    N.indDim            = (1:11)';
+                    N.sn                = ones(size(N.corr_ms))*s;
+                    N.roi               = ones(size(N.corr_ms))*r;
+                    N.regType           = ones(size(N.corr_ms))*Tt.regType;
+                    N.regSide           = ones(size(N.corr_ms))*Tt.regSide;
+                    N.sessN             = ones(size(N.corr_ms))*ss;
+                    
+                    Dim=addstruct(Dim,N);
+                end
+                fprintf('%d.',r);
+            end
+            fprintf('\t...done sess-%d.\n',ss);
+        end
+        
+        % save dimensionality
+        save(fullfile(distPscDir,sprintf('Dimensionality_overallSeq_%s.mat',parcelType)),'-struct','Dim');
     case 'PLOT_dimensions'
         roi=3;
         parcelType='Brodmann';
@@ -1914,40 +1969,11 @@ switch(what)
         
         D=load(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)));
         D=getrow(D,D.roi==roi);
-        figure
-        for st=1:2
-            subplot(1,2,st)
-            plt.line(D.indDim,D.dimD,'split',D.sessN,'subset',D.seqType==st);
-            drawline(0,'dir','horz');
-            plt.match('y');
-            title(sprintf('%s-%s',regname{roi},seqLabel{st}));
-            if st==1
-                ylabel('Dimensionality - old');
-                xlabel('Possible dimensions');
-            else
-                ylabel('');
-            end
-        end
             
         figure
         for st=1:2
             subplot(1,2,st)
-            plt.line(D.indDim,D.corrD,'split',D.sessN,'subset',D.seqType==st);
-            drawline(0,'dir','horz');
-            plt.match('y');
-            title(sprintf('%s-%s',regname{roi},seqLabel{st}));
-            if st==1
-                ylabel('Dimensionality - correlation');
-                xlabel('Possible dimensions');
-            else
-                ylabel('');
-            end
-        end
-        
-        figure
-        for st=1:2
-            subplot(1,2,st)
-            plt.line(D.indDim,D.corr,'split',D.sessN,'subset',D.seqType==st);
+            plt.line(D.indDim,D.corr_ms,'split',D.sessN,'subset',D.seqType==st,'style',stySess);
             drawline(0,'dir','horz');
             plt.match('y');
             title(sprintf('%s-%s',regname{roi},seqLabel{st}));
@@ -1958,7 +1984,65 @@ switch(what)
                 ylabel('');
             end
         end
-         
+        
+        figure
+        for st=1:2
+            subplot(1,2,st)
+            plt.line(D.indDim,D.corr_ms_norm,'split',D.sessN,'subset',D.seqType==st,'style',stySess);
+            drawline(0,'dir','horz');
+            plt.match('y');
+            hold on;
+            drawline(1,'dir','horz');
+            title(sprintf('%s-%s',regname{roi},seqLabel{st}));
+            if st==1
+                ylabel('Correlations');
+                xlabel('Possible dimensions');
+            else
+                ylabel('');
+            end
+        end
+    case 'PLOT_dimensions_overall'
+        roi=3;
+        parcelType='Brodmann';
+        vararginoptions(varargin,{'roi','parcelType'});
+        
+        D=load(fullfile(distPscDir,sprintf('Dimensionality_overallSeq_%s.mat',parcelType)));
+        D=getrow(D,D.roi==roi);
+        
+        figure
+        subplot(121)
+        plt.line(D.indDim,D.corr_ms,'split',D.sessN,'style',stySess);
+        drawline(0,'dir','horz');
+        plt.match('y');
+        title(sprintf('%s',regname{roi}));
+        ylabel('Correlations');
+        xlabel('Possible dimensions');
+        
+        
+        subplot(122)
+        plt.line(D.indDim,D.corr_ms_norm,'split',D.sessN,'style',stySess);
+        drawline(0,'dir','horz');
+        hold on;
+        drawline(1,'dir','horz');
+        title(sprintf('%s',regname{roi}));
+        ylabel('Correlations');
+        xlabel('Possible dimensions');
+        
+    case 'STATS_dimensions'
+        parcelType='Brodmann';
+        roi=1:8;
+        vararginoptions(varargin,{'parcelType','roi'});
+        D=load(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)));
+     
+        for r=roi
+            T=getrow(D,D.roi==r);
+            fprintf('%s - trained\n',regname{r});
+            anovaMixed(T.corr_ms_norm,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==1);
+            fprintf('%s - untrained\n',regname{r});
+            anovaMixed(T.corr_ms_norm,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==2);
+            keyboard;
+        end
+            
     case 'ROI_psc_surfdist'
        sn = [1:7];
         roi = [1:8];
@@ -2101,6 +2185,28 @@ switch(what)
             end
             indx=indx+1;
         end
+    case 'PLOT_dist_individDiff'
+        roi=[1:8];
+        hemi=1;
+        parcelType='Brodmann';
+        var='x1_mean';
+        vararginoptions(varargin,{'roi','sessN','parcelType','hemi','var'});
+        
+        T=load(fullfile(distPscDir,sprintf('corrDist_seqType_%s_ROI.mat',parcelType)));
+        % load behaviour;
+        B=load(fullfile(baseDir,'behavioral_data','analyze','exponentialFits'));
+        B=getrow(B,B.sn~=4);
+        for r=roi
+            figure
+            for ss=1:4
+                subplot(1,4,ss)
+              %  t=getrow(T,T.roi==r&T.regSide==hemi&T.sn~=4&T.sessN==ss);
+             %   plt.scatter(B.(var),t.dist_train);
+                t=getrow(T,T.roi==r & T.regSide==hemi & T.sn~=4 & T.sessN==ss & T.seqType==1);
+                plt.scatter(B.(var),t.corrDist);
+                title(sprintf('%s - sess%d',regname{r},ss));
+            end
+        end
     case 'PLOT_dist_sessions'
         sessN=[1:3];
         regExcl=6;
@@ -2212,19 +2318,24 @@ switch(what)
         T.dist=[D.dist_train; D.dist_untrain];
         T.seqType=[ones(size(D.dist_train));ones(size(D.dist_train))*2];
         T.sn=[D.sn;D.sn];
-        T.roi=[D.regType;D.regType];
+        T.regType=[D.regType;D.regType];
+        T.regSide=[D.regSide;D.regSide];
         T.sessN=[D.sessN;D.sessN];
         
         % ANOVA - session x seqType - per region
         for r=roi
             fprintf('\n Dist in %s \n',regname{r});
-            anovaMixed(T.dist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.roi==r);
+            anovaMixed(T.dist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.regType==r&T.regSide==hemi);
         end
         keyboard;
         for r=roi
             for ss=sessN
                 fprintf('\n post-hoc t-test on the effect of seqType in sess %d in %s \n',ss,regname{r});
-                ttestDirect(T.dist,[T.seqType T.sn],2,'paired','subset',T.roi==r&T.sessN==ss);
+                ttestDirect(T.dist,[T.seqType T.sn],2,'paired','subset',T.regType==r&T.regSide==hemi&T.sessN==ss);
+                fprintf('trained seq vs. 0\n');
+                ttestDirect(T.dist,[T.sn],2,'onesample','subset',T.regType==r&T.regSide==hemi&T.sessN==ss&T.seqType==1);
+                fprintf('untrained seq vs. 0\n');
+                ttestDirect(T.dist,[T.sn],2,'onesample','subset',T.regType==r&T.regSide==hemi&T.sessN==ss&T.seqType==2);
             end
         end
     case 'STATS_dist_seqType'
@@ -3012,11 +3123,11 @@ switch(what)
                     D=load(fullfile(glmDirSubj,'SPM_info.mat'));               
                     switch (beta_choice)
                         case 'uw'
-                            beta = B.betaUW{(B.sn==sn(p)&B.region==r)}';
+                            beta = B.betaUW{(B.sn==sn(p)&B.region==reg(r))}';
                         case 'mw'
                             beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))}';
                         case 'raw'
-                            beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
+                            beta = B.betaRAW{(B.sn==sn(p)&B.region==reg(r))}'; % no intercept - use T.betaRAWint otherwise
                     end
                     
                     partVec{p} = D.run;  % runs/partitions
@@ -3302,87 +3413,182 @@ switch(what)
         save(fullfile(pcmDir,sprintf('ModelFamilyComb_seqType_%s.mat',parcelType)),'Comb');
         save(fullfile(pcmDir,sprintf('ModelFamily_Fit_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','AllReg');
         save(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','KK');
+    
     case 'PCM_FingSeq_modelFamily'
+        % only first finger, all fingers, transitions, seqType
+        %(Feb 22nd 2019)
         runEffect  = 'fixed';
         beta_choice = 'mw';
         algorithm='NR'; % minimize or NR
         parcelType='162tessels'; % Brodmann or 162tessels
-        reg = [1,2,16,20,43,44,45,46,47,48,49,50,52,103,104,105]; % for tessels, 1:8 for Brodmann
-        hemi=[1:2];
-        sn=[4,5,7,8,9,11,13:18]; % change
-        sessN=[1:4];
-        AllReg=[];
-        K=[];
-        KK=[];
+        reg = 1:8; % for tessels, 1:8 for Brodmann
+        regSelect='all';
+        sn=[5:9,11:31]; % change
+        sessN=1:4;
         
         vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi'})
-
-        for ss = sessN
-            B=load(fullfile(regDir,sprintf('betas_%s_sess%d.mat',parcelType,ss)));
-            for h=hemi
-                for r = reg
-                    for p=1:length(sn)
-                        
-                        glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn(p)});                        
-                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));
-                        
-                        switch (beta_choice)
-                            case 'uw'
-                                beta = B.betaUW{(B.sn==sn(p)&B.regType==r&B.regSide==h)};
-                            case 'mw'
-                                beta = B.betaW{(B.SN==sn(p)&B.regType==r&B.regSide==h)};
-                            case 'raw'
-                                beta = B.betaRAW{(B.sn==sn(p)&B.regType==r)}; % no intercept - use T.betaRAWint otherwise
-                        end
-                        
-                        partVec{p} = D.run;  % runs/partitions
-                       % m = pcm_defineSequenceFingerModels(Seq,p);
-                        m = pcm_defineSequenceFingerModels_new(Seq,p);
-                        [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
-                       % [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1,'alwaysInclude',1);
-                        [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
-      
-                        condVec{p} = repmat(Z,max(D.run),1);
-                        indx = ones(size(D.run));
-                        if ~isnan(beta)
-                            Data{p} = beta(indx==1,:);  % Data is N x P (cond x voxels) - no intercept
-                            fit(p)=1;
-                        else
-                            fit(p)=0;
-                        end
-                    end;
-                    
-                    if sum(fit)==length(sn)
-                        % fit models
-                        T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
-                        T.roi = ones(size(T.SN))*r;
-                        T.hemi = ones(size(T.SN))*h;
-                        T.sessN = ones(size(T.SN))*ss;
-                        AllReg=addstruct(AllReg,T);
-                        
-                        % calculations - posterior probability, knockIN/OUT
-                        K = pcm_calc(T.cross_likelihood,Comb);
-                        K.roi = ones(length(K.indx),1)*r;
-                        K.hemi = ones(length(K.indx),1)*h;
-                        K.sessN = ones(length(K.indx),1)*ss;
-                        KK=addstruct(KK,K);
-                    end
-                end
+        
+        if strcmp(parcelType,'162tessels')
+            switch regSelect
+                case 'subset'
+                    reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+                case 'all'
+                    reg=sml1_imana_dist('CLUSTER_choose_all','sessN',sessN)';
             end
         end
+        for ss = sessN
+            AllReg=[];
+            KK=[];
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            if ~strcmp(parcelType,'162tessels')
+                reg=unique(B.region)';
+                regSide=(reg>size(reg,2)/2)+1;
+                regType=reg-((regSide-1)*size(reg,2)/2);
+            else % only for 162tessels
+                regType=reg;
+                regType(regType>158)=regType(regType>158)-158;
+                regSide=ones(size(regType));
+                regSide(reg>158)=2;
+            end
+            for r = 1:length(reg)
+                for p=1:length(sn)
+                    glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn(p)});
+                    D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                    switch (beta_choice)
+                        case 'uw'
+                            beta = B.betaUW{(B.sn==sn(p)&B.region==reg(r))};
+                        case 'mw'
+                            beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))};
+                        case 'raw'
+                            beta = B.betaRAW{(B.sn==sn(p)&B.regoin==reg(r))}; % no intercept - use T.betaRAWint otherwise
+                    end
+                    partVec{p} = D.run;  % runs/partitions
+                    %condVec{p} = D.seqNumb;
+                    indx = ones(size(D.run));
+                    Data{p} = beta(indx==1,:);  % Data is N x P (cond x voxels) - no intercept
+                    m = pcm_defineSequenceFingerModels_new(Seq,p);
+                    [M,Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
+                    [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
+                    condVec{p} = repmat(Z,max(D.run),1);
+                end;
+                % fit models
+                T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
+                T.roi = ones(size(T.SN))*reg(r);
+                T.regType = ones(size(T.SN))*regType(r);
+                T.regSide = ones(size(T.SN))*regSide(r);
+                T.sessN = ones(size(T.SN))*ss;
+                T=rmfield(T,{'reg','thetaCr'});
+                AllReg=addstruct(AllReg,T);
+                % calculations - posterior probability, knockIN/OUT -
+                % removed
+                K = pcm_calc(T.cross_likelihood,Comb);
+                K.roi = ones(length(K.indx),1)*reg(r);
+                K.regType = ones(length(K.indx),1)*regType(r);
+                K.regSide = ones(length(K.indx),1)*regSide(r);
+                K.sessN = ones(length(K.indx),1)*ss;
+                KK=addstruct(KK,K);
+                fprintf('Done sess:%d  region:%d/%d\n\n',ss,r,numel(reg));
+            end
+            % save variables;
+            if ss==1
+                save(fullfile(pcmDir,sprintf('ModelFamilyComb_SeqFing_%s.mat',parcelType)),'Comb');
+            end
+            save(fullfile(pcmDir,sprintf('ModelFamily_Fit_SeqFing_%s_sess-%d.mat',parcelType,ss)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_%s_sess-%d.mat',parcelType,ss)),'-struct','KK');
+            fprintf('Done sess-%d\n\n\n',ss);
+        end
         
-        % save variables;
-        dircheck(fullfile(pcmDir));
-        r1='reg'; r2='thetaCr'; AllReg=rmfield(AllReg,r1); AllReg=rmfield(AllReg,r2);
-        %save(fullfile(pcmDir,sprintf('ModelFamilyComb_SeqFing_%s.mat',parcelType)),'Comb');
-        %save(fullfile(pcmDir,sprintf('ModelFamily_Fit_SeqFing_%s.mat',parcelType)),'-struct','AllReg');
-        %save(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_%s.mat',parcelType)),'-struct','KK');
-        % ALL PARCELS! - added ALL
-        save(fullfile(pcmDir,sprintf('ModelFamilyComb_SeqFing_NEW_ALL_%s.mat',parcelType)),'Comb');
-        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_SeqFing_NEW_ALL_%s.mat',parcelType)),'-struct','AllReg');
-        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_NEW_ALL_%s.mat',parcelType)),'-struct','KK');
-       % name = {'ST','SS','FF','FA'};  
-        name = {'TS','US','FF','FA'};   
+
+        %name = {'TS','US','FF','FA'};   
+    case 'PCM_FingSeq_modelFamily_seqType'
+        % only first finger, all fingers, transitions, seqType
+        %(Feb 22nd 2019)
+        runEffect  = 'fixed';
+        beta_choice = 'mw';
+        algorithm='NR'; % minimize or NR
+        parcelType='162tessels'; % Brodmann or 162tessels
+        reg = 1:8; % for tessels, 1:8 for Brodmann
+        regSelect='all';
+        sn=[5:9,11:31]; % change
+        sessN=1:4;
+        
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi'})
+        
+        if strcmp(parcelType,'162tessels')
+            switch regSelect
+                case 'subset'
+                    reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+                case 'all'
+                    reg=sml1_imana_dist('CLUSTER_choose_all','sessN',sessN)';
+            end
+        end
+        for ss = sessN
+            AllReg=[];
+            KK=[];
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            if ~strcmp(parcelType,'162tessels')
+                reg=unique(B.region)';
+                regSide=(reg>size(reg,2)/2)+1;
+                regType=reg-((regSide-1)*size(reg,2)/2);
+            else % only for 162tessels
+                regType=reg;
+                regType(regType>158)=regType(regType>158)-158;
+                regSide=ones(size(regType));
+                regSide(reg>158)=2;
+            end
+            for r = 1:length(reg)
+                for st=1:2 % trained / untrained
+                    for p=1:length(sn)
+                        glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn(p)});
+                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                        switch (beta_choice)
+                            case 'uw'
+                                beta = B.betaUW{(B.sn==sn(p)&B.region==reg(r))};
+                            case 'mw'
+                                beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))};
+                            case 'raw'
+                                beta = B.betaRAW{(B.sn==sn(p)&B.regoin==reg(r))}; % no intercept - use T.betaRAWint otherwise
+                        end
+                        partVec{p} = D.run(D.seqType==st);  % runs/partitions
+                        %condVec{p} = D.seqNumb;
+                        indx = ones(size(D.run));
+                        Data{p} = beta(indx==1&D.seqType==st,:);  % Data is N x P (cond x voxels) - no intercept
+                        m = pcm_defineSequenceFingerModels_seqType(Seq,p,st);
+                        [M,Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
+                        [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
+                        condVec{p} = repmat(Z,max(D.run),1);
+                    end;
+                    % fit models
+                    T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
+                    T.roi = ones(size(T.SN))*reg(r);
+                    T.regType = ones(size(T.SN))*regType(r);
+                    T.regSide = ones(size(T.SN))*regSide(r);
+                    T.seqType = ones(size(T.SN))*st;
+                    T.sessN = ones(size(T.SN))*ss;
+                    T=rmfield(T,{'reg','thetaCr'});
+                    AllReg=addstruct(AllReg,T);
+                    % calculations - posterior probability, knockIN/OUT -
+                    % removed
+                    K = pcm_calc(T.cross_likelihood,Comb);
+                    K.roi = ones(length(K.indx),1)*reg(r);
+                    K.regType = ones(length(K.indx),1)*regType(r);
+                    K.regSide = ones(length(K.indx),1)*regSide(r);
+                    K.seqType = ones(length(K.indx),1)*st;
+                    K.sessN = ones(length(K.indx),1)*ss;
+                    KK=addstruct(KK,K);
+                    fprintf('Done sess:%d sequence-%d region:%d/%d\n\n',ss,st,r,numel(reg));
+                end
+            end
+            % save variables;
+            if ss==1
+                save(fullfile(pcmDir,sprintf('ModelFamilyComb_SeqFing_seqType_%s.mat',parcelType)),'Comb');
+            end
+            save(fullfile(pcmDir,sprintf('ModelFamily_Fit_SeqFing_seqType_%s_sess-%d.mat',parcelType,ss)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_seqType_%s_sess-%d.mat',parcelType,ss)),'-struct','KK');
+            fprintf('Done sess-%d\n\n\n',ss);
+        end
+        
+    
     case 'PLOT_PCM_SeqFing_SURFACE'
         parcelType='162tessels';
         sessN=[1:4];
@@ -3430,13 +3636,12 @@ switch(what)
                 %caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.logBayes_%s_sess%d.RGB_paint',hem{h},featureName{f},ss)),R);
             end
         end
-    case 'PLOT_PCM_SeqFing_ROI'
+    case 'PLOT_PCM_SeqFing_ROI_component'
         parcelType='Brodmann';
-        sessN=[1:4];
-        roi=[1:5,7,8];
+        roi=1:8;
         
         vararginoptions(varargin,{'parcelType','sessN','roi'});
-        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fingCount.mat',parcelType)));
+        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_%s.mat',parcelType)));
         
         indx=1;
         for r = roi
@@ -3482,6 +3687,110 @@ switch(what)
             
             
            indx=indx+1;
+        end
+    case 'PLOT_PCM_SeqFing_seqType_ROI_component'
+        parcelType='Brodmann';
+        sessN=1:4;
+        roi=1:8;
+        vararginoptions(varargin,{'parcelType','sessN','roi'});
+        
+        A=[];
+        for ss=sessN
+            T = load(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_seqType_%s_sess-%d.mat',parcelType,ss)));
+            A=addstruct(A,T);
+        end
+        
+        indx=1;
+        for r = roi
+            figure
+            subplot(421);
+            plt.bar([A.sessN>3 A.sessN],A.logBayes,'subset',A.roi==r&A.seqType==1,'split',[A.indx],'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s-trained',regname{r}));
+            if indx==1
+                ylabel('logBayes factor');
+            else
+                ylabel('');
+            end
+            subplot(422);
+            plt.bar([A.sessN>3 A.sessN],A.logBayes,'subset',A.roi==r&A.seqType==2,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s-untrained',regname{r}));
+            if indx==1
+                ylabel('logBayes factor');
+            else
+                ylabel('');
+            end
+            
+            subplot(423);
+            plt.bar([A.sessN>3 A.sessN],A.knockIN,'subset',A.roi==r&A.seqType==1,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('knockIN factor - trained');
+            else
+                ylabel('');
+            end
+            
+            subplot(424);
+            plt.bar([A.sessN>3 A.sessN],A.knockIN,'subset',A.roi==r&A.seqType==2,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('knockIN factor - untrained');
+            else
+                ylabel('');
+            end
+            
+            subplot(425);
+            plt.bar([A.sessN>3 A.sessN],A.knockOUT,'subset',A.roi==r&A.seqType==1,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('knockOUT factor - trained');
+            else
+                ylabel('');
+            end
+            
+            subplot(426);
+            plt.bar([A.sessN>3 A.sessN],A.knockOUT,'subset',A.roi==r&A.seqType==2,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('knockOUT factor - untrained');
+            else
+                ylabel('');
+            end
+            
+            subplot(427);
+            plt.bar([A.sessN>3 A.sessN],A.postProp,'subset',A.roi==r&A.seqType==1,'split',A.indx,'leg',{'Seq','First Fing','All Fing'},'leglocation','northeast');
+            hold on;
+            drawline(0.5,'dir','horz');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('Posterior probability - trained');
+            else
+                ylabel('');
+            end
+            
+            subplot(428);
+            plt.bar([A.sessN>3 A.sessN],A.postProp,'subset',A.roi==r&A.seqType==2,'split',A.indx,'leg',{'Trained Seq','Untrained Seq','First Fing','All Fing'},'leglocation','northeast');
+            hold on;
+            drawline(0.5,'dir','horz');
+            title(sprintf('%s',regname{r}));
+            if indx==1
+                ylabel('Posterior probability - untrained');
+            else
+                ylabel('');
+            end
+            
+           indx=indx+1;
+        end
+    case 'PLOT_PCM_SeqFing_ROI_logBayes'
+        parcelType='Brodmann';
+        roi=1:8;
+        vararginoptions(varargin,{'parcelType','sessN','roi'});
+        A=load(fullfile(pcmDir,sprintf('ModelFamily_Fit_SeqFing_%s.mat',parcelType)));
+        
+        for r=roi
+            figure
+            barplot(A.sessN,A.bayesEst(:,1:5),'subset',A.roi==r);
+            ylabel('logBayes');
+            title(regname{r});
         end
     case 'PLOT_PCM_SeqFing_ROI_reduced'
         parcelType='Brodmann';
@@ -3690,20 +3999,18 @@ switch(what)
        % save(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_bothSeqType.mat',parcelType)),'-struct','KK');
     case 'PLOT_SURFACE_PCM_tessels_seqType'
         parcelType='162tessels';
-        sessN=[1:4];
+        sessN=1:4;
         thres=[0 1]; % [0 10] for knockIN [0 1 for knockOUT]
-        featureSet=[1:4];
-        featureName={'Seq','FirstFing','AllFing','FingTrans'};
+        featureSet=1:4;
+        var='logBayes'; % logBayes, knockOUT, knockIN
+        featureName={'FirstFing','AllFing','FingTrans','Chunk','Seq'};
         vararginoptions(varargin,{'parcelType','sessN','thres'});
-        KK=[];
-        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_trained.mat',parcelType)));
-        B=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_untrained.mat',parcelType)));
-        KK=addstruct(KK,A); KK=addstruct(KK,B);
-        KK.seqType=[ones(size(A.sn));ones(size(A.sn))*2]; 
+        KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_fingCount.mat',parcelType)));
+
         
         tesselNum=unique(KK.roi);
 
-        for h=1:2;    % only contralateral
+        for h=1:2;    
             C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
             % per hemisphere
             for ss=sessN
@@ -3715,91 +4022,95 @@ switch(what)
                         
                         indx=C.index(C.data==r);    % indicate the right tessel
                         
-                        RGBdata(indx,1)=mean(S.knockOUT(S.seqType==1)*(-1)); % trained
-                        RGBdata(indx,3)=mean(S.knockOUT(S.seqType==2)*(-1)); % untrained
-                        RGBdata(indx,2)=mean(S.knockOUT(S.seqType==1)*(-1))-mean(S.knockOUT(S.seqType==2)*(-1)); % difference between the two
+                        RGBdata(indx,1)=mean(S.(var)(S.seqType==1)*(-1)); % trained
+                        RGBdata(indx,3)=mean(S.(var)(S.seqType==2)*(-1)); % untrained
+                        RGBdata(indx,2)=mean(S.(var)(S.seqType==1)*(-1))-mean(S.(var)(S.seqType==2)*(-1)); % difference between the two
                     end
                     RGBdata(RGBdata(:,1)<thres(1))=0;
                     RGBdata(RGBdata(:,3)<thres(1))=0;
                     
                     scale=[thres;thres;thres];
-                    name={sprintf('knockOUT_%s_sess%d',featureName{f},ss)};
-                    %name={sprintf('logBayes_%s_sess%d',featureName{f},ss)};
+                    name={sprintf('%s_%s_sess%d',var,featureName{f},ss)};
                     R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
-                    caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.knockOUT_%s_sess%d.RGB_paint',hem{h},featureName{f},ss)),R);
+                    caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.%s_%s_sess%d.RGB_paint',var,hem{h},featureName{f},ss)),R);
                     %caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.logBayes_%s_sess%d.RGB_paint',hem{h},featureName{f},ss)),R);
                 end
             end
         end
     case 'PLOT_SURFACE_PCM_tessels'     
         parcelType='162tessels';
-        sessN=[1:4];
+        sessN=1:4;
         thres=[0 3]; % [0 10] for knockIN [0 1 for knockOUT]
-        var='knockIN'; %knockIN / knockOUT / logBayes
-        %featureSet=[1,2,4:6]; % skip untrained - taking trained / untrained together
-        featureSet=[1,3,4,5];
-        %featureName={'SeqType','SeqSpec','','FirstFing','AllFing','FingTrans'};
-         featureName={'SeqSpec','','FirstFing','AllFing','FingTrans'};
-        % colours: green - red - blue - red - blue - green
+        var='logBayes'; %knockIN / knockOUT / logBayes
+        featureSet=1:4;
+         featureName={'Trained','Untrained','FirstFing','AllFing'};
+        % colours: red - blue - green - green
         vararginoptions(varargin,{'parcelType','sessN','thres','var'});
-        A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_NEW_%s.mat',parcelType)));
-        
-        tesselNum=unique(A.roi);
 
         for h=1:2;    % only contralateral
             C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
             % per hemisphere
             for ss=sessN
+                A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_%s_sess-%d.mat',parcelType,ss)));    
+                tesselNum=unique(A.regType(A.regSide==h));
                 for f=featureSet
                     RGBdata=zeros(size(C.data,1),3);
                     for r=tesselNum'
-                        S=getrow(A,A.roi==r & A.hemi==h & A.sessN==ss & A.indx==f);
+                        S=getrow(A,A.regType==r & A.regSide==h & A.sessN==ss & A.indx==f);
                         % data from that hemi, tessel, session - per feature
                         
                         indx=C.index(C.data==r);    % indicate the right tessel
-                        switch (var)
-                            case 'knockIN'
-                                I=S.knockIN;
-                                if f==1
-                                    T=getrow(A,A.roi==r & A.hemi==h & A.sessN==ss & A.indx==f+1);  % untrained
-                                    TI=T.knockIN;
-                                end
-                            case 'knockOUT'
-                                I=S.knockOUT*(-1);
-                                if f==1
-                                    T=getrow(A,A.roi==r & A.hemi==h & A.sessN==ss & A.indx==f+1);  % untrained
-                                    TI=T.knockOUT*(-1);
-                                end
-                            case 'logBayes'
-                                I=S.logBayes;
-                                if f==1
-                                    T=getrow(A,A.roi==r & A.hemi==h & A.sessN==ss & A.indx==f+1);  % untrained
-                                    TI=T.logBayes;
-                                end
-                        end
-                        
+                        TI=S.(var);
                         if f==1
                         %if f==2 % red
-                            RGBdata(indx,1)=mean(I); % trained
+                            RGBdata(indx,1)=mean(TI); % trained
+                        elseif f==2 % blue
                             RGBdata(indx,3)=mean(TI); % untrained
                         else % always green
-                            RGBdata(indx,2)=mean(I);
+                            RGBdata(indx,2)=mean(TI); % finger models
                         end
                     end
-                    RGBdata(RGBdata(:,1)<thres(1))=0;
+                    RGBdata(RGBdata(:,1)<thres(1))=0; % threshold
                     RGBdata(RGBdata(:,2)<thres(1))=0;
                     RGBdata(RGBdata(:,3)<thres(1))=0;
                     
                     scale=[thres;thres;thres];
-                    name={sprintf('%s_%s_sess%d_PCMfull',var,featureName{f},ss)};
-                    %name={sprintf('logBayes_%s_sess%d',featureName{f},ss)};
+                    % save
+                    name={sprintf('PCM_%s_%s_sess%d',var,featureName{f},ss)};
                     R=caret_struct('RGBpaint','data',RGBdata,'scales',{scale},'column_name',name);
-                    caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.PCM_fullNEW_%s_%s_sess%d.RGB_paint',hem{h},var,featureName{f},ss)),R);
-                    %caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.logBayes_%s_sess%d.RGB_paint',hem{h},featureName{f},ss)),R);
+                    caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.PCM_%s_%s_sess%d.RGB_paint',hem{h},var,featureName{f},ss)),R);
                 end
             end
         end
+    case 'PLOT_SURFACE_PCM_trained-untrained'
+        parcelType='162tessels';
+        sessN=1:4;
+        thres=[0 3]; 
+        var='logBayes'; %knockIN / knockOUT / logBayes
+        vararginoptions(varargin,{'parcelType','sessN','thres','var'});
         
+        for h=1:2;    % only contralateral
+            C=caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.tessel162.paint',hem{h}))); % freesurfer
+            % per hemisphere
+            for ss=sessN
+                A=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_SeqFing_%s_sess-%d.mat',parcelType,ss)));
+                tesselNum=unique(A.regType(A.regSide==h));
+                data=zeros(size(C.data,1),3);
+                for r=tesselNum'
+                    S_tr=getrow(A,A.regType==r & A.regSide==h & A.sessN==ss & A.indx==1);
+                    S_utr=getrow(A,A.regType==r & A.regSide==h & A.sessN==ss & A.indx==2);
+                    % data from that hemi, tessel, session - per feature
+                    indx=C.index(C.data==r);    % indicate the right tessel
+                    data(indx,1)=mean(S_tr.(var)-S_utr.(var));
+                end
+                scale=[thres;thres;thres];
+                % save
+                column_name{1}=fullfile(sprintf('PCM_%s_trained-untrained_sess%d',var,ss));
+              %  R=caret_struct('metric','data',data,'scales',{scale},'column_name',column_name);
+                R=caret_struct('metric','data',data,'column_name',column_name);
+                caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.PCM_%s_trained-untrained_sess%d.metric',hem{h},var,ss)),R);
+            end
+        end
     case 'STATS_PCM_modelFamily_seqType'
         roi=[1:8];
         sessN=[1:4];
@@ -6402,7 +6713,7 @@ function M = pcm_defineSequenceModels_seqType(Seq,Chunks,sn,seqType)
     end
     % Model1: First finger model
     M{1}(:,:)=zeros(6,5); % first finger
-    for u = 1:size(SeqSet,1)    % 12 seq
+    for u = 1:size(SeqSet,1)    % 6 seq
         firstfing = SeqSet(:,1);
         M{1}(u,firstfing(u)) = 1;
     end
@@ -6494,6 +6805,44 @@ function M = pcm_defineSequenceFingerModels_new(Seq,sn)
         for j = 1:5                 % 5 fingers
             placenumb = find(Seq(u,:)==j);
             M{4}(u,j) = length(placenumb);
+        end
+    end
+end
+function M = pcm_defineSequenceFingerModels_seqType(Seq,sn,seqType)
+%  No fixed / run component added
+% specific sequence + overall component modelled together
+    % --------------------------------------
+     if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
+        SeqNew = zeros(12,9);
+        SeqNew(1:6,:)=Seq(7:12,:);
+        SeqNew(7:12,:)=Seq(1:6,:);
+        Seq=SeqNew;
+    end
+    if seqType==1
+        SeqSet=Seq(1:6,:);
+    elseif seqType==2
+        SeqSet=Seq(7:12,:);
+    end
+    % Model1: Model for each specific SPECIFIC sequence
+    A=zeros(6);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{1}(:,1:6)    = A;       % Trained sequence patterns
+    % ---------------------------------------
+    % Model2: First finger model
+    M{2}(:,:)=zeros(6,5); % first finger
+    for u = 1:size(SeqSet,1)    % 6 seq
+        firstfing = SeqSet(:,1);
+        M{2}(u,firstfing(u)) = 1;
+    end
+    % ---------------------------------------
+    % Model3: All fingers
+    M{3}(:,:)=zeros(6,5); % all fingers
+    for u = 1:size(SeqSet,1)
+        for j = 1:5                 % 5 fingers
+            placenumb = find(SeqSet(u,:)==j);
+            M{3}(u,j) = length(placenumb);
         end
     end
 end

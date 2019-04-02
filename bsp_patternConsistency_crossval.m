@@ -1,4 +1,4 @@
-function [R2 R]=rsa_patternConsistency_crossval(Y,partition,conditionVec,varargin)
+function [R2,R]=bsp_patternConsistency_crossval(Y,partition,conditionVec,varargin)
 % function R_cross=rsa_patternConsistency(Y,partition,conditionVec);
 % Caluclates a measure of pattern consistency R2 = SS_between / SS_total
 % INPUT:
@@ -39,17 +39,17 @@ if ~isnan(Y) % if no data provided
     
     % prep betas - leave one out manner
     for i=1:numPart
-        testRun  = i;
-        trainRun = part~=i;
-        R        = bsxfun(@minus,A(:,:,testRun),mean(A(:,:,trainRun),3));
-        SSR      = sum(sum(sum(R.^2)));
-        SST      = sum(sum(sum(A.^2)));
-        r2(i)    = 1-SSR/SST;   
-        tmp      = corrcoef(A(:,:,testRun),mean(A(:,:,trainRun),3));
-        r(i)     = tmp(2);
-    end
-    R2 = mean(r2);
-    R  = mean(r);
+        testRun      = i;
+        trainRun     = part~=i;
+        Pred(:,:,i)  = mean(A(:,:,trainRun),3);
+    end; 
+    SSR      = sum(sum(sum((A-Pred).^2)));
+    SST      = sum(sum(sum(A.^2)));
+    SSP      = sum(sum(sum(Pred.^2))); 
+    SSPA     = sum(sum(sum(Pred.*A))); 
+    
+    R2 = 1-SSR/SST;
+    R  = SSPA / sqrt(SST*SSP);
 else
     warning('no data given');
     R2 = NaN;

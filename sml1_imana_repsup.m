@@ -3739,7 +3739,7 @@ switch(what)
         parcelType='Brodmann';
         M_type=2; % 1 - generic, 2 - specific
         
-        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','seqType','M_type'})
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','M_type','parcelType'})
 
         for ss = sessN
             B=load(fullfile(betaDir,'group',sprintf('betas_FoSEx_%s_sess%d.mat',parcelType,ss)));
@@ -3793,10 +3793,11 @@ switch(what)
                     AllReg=addstruct(AllReg,T);
                     AllReg=addstruct(AllReg,C);
                     AllReg=rmfield(AllReg,{'reg','theta','theta_hat','thetaCr'});
+                    fprintf('Done: sess-%d reg-%d/%d\n',ss,r,length(reg));
                 end % region
             end; % seqType
             % save output
-            save(fullfile(pcmDir,sprintf('PCM_repsup_models_%s_sess%d_%s.mat',models{M_type},ss,runEffect)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('PCM_repsup_models_%s_sess%d_%s.mat',models{M_type},ss,parcelType)),'-struct','AllReg');
         end % session
     case 'PCM_simulateCorr'
         runEffect = 'fixed';
@@ -4231,7 +4232,6 @@ switch(what)
                     T.exe   = ones(size(T.SN))*rep;
                     T=rmfield(T,{'reg','thetaCr','theta_hat'});
                     AllReg=addstruct(AllReg,T);
-                    fprintf('Done fitting models: sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
                     % calculations - posterior probability, knockIN/OUT
                     K = pcm_calc(T.cross_likelihood,Comb);
                     K.roi = ones(length(K.indx),1)*reg(r);
@@ -4240,7 +4240,7 @@ switch(what)
                     K.sessN = ones(length(K.indx),1)*ss;
                     K.exe   = ones(length(K.indx),1)*rep;
                     KK=addstruct(KK,K);
-                    fprintf('Done overall: sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
+                    fprintf('Done: sess-%d rep-%d reg-%d/%d\n',ss,rep,r,length(reg));
                 end
             end
             save(fullfile(pcmDir,sprintf('ModelFamilyComb_FoSEx_%s_sess%d.mat',parcelType,ss)),'Comb');
@@ -4250,7 +4250,7 @@ switch(what)
         
         % save variables;
         dircheck(fullfile(pcmDir));
-    case 'PCM_plotModels'
+    case 'PCM_plotModelFamily' % do with striatum
         parcelType = 'Brodmann';
         roi=[1:8];
         var='knockOUT'; % knockOUT or logBayes;
@@ -4647,6 +4647,91 @@ switch(what)
         set(gca,'XTickLabel',regname_cortex(reg));
         title(sprintf('%s',seqType));
         xlabel('ROI');  
+    case 'PLOT_pcm_models'          % new - repsup models (Feb 16)
+        reg = [1:8];
+        sessN=[1:4];
+        modelType='specific';
+        parcelType = 'Brodmann';
+        runEffect  = 'fixed';
+        vararginoptions(varargin,{'reg','sessN','seqType','modelType','parcelType'});
+        T=[];
+        for t=sessN
+            R=load(fullfile(pcmDir,sprintf('PCM_repsup_models_%s_sess%d_%s.mat',modelType,t,parcelType)));
+            R.sessN=ones(size(R.SN))*t;
+            T=addstruct(T,R);
+        end
+        model_noRep = bsxfun(@minus,T.bayesEst,T.bayesEst(:,2));
+        for r=reg
+            figure
+            subplot(221)
+            barplot(T.sessN,T.bayesEst,'subset',T.roi==r & T.seqType==1);
+            xlabel('session');
+            ylabel('logBayes');
+            title(sprintf('trained %s',regname{r}));
+            subplot(223)
+            barplot(T.sessN,model_noRep(:,[2:end]),'subset',T.roi==r & T.seqType==1);
+            xlabel('session');
+            ylabel('logBayes - relative to repModel');
+            subplot(222)
+            barplot(T.sessN,T.bayesEst,'subset',T.roi==r & T.seqType==2);
+            xlabel('session');
+            ylabel('logBayes');
+            title(sprintf('untrained %s',regname{r}));
+            subplot(224)
+            barplot(T.sessN,model_noRep(:,[2:end]),'subset',T.roi==r & T.seqType==2);
+            xlabel('session');
+            ylabel('logBayes - relative to repModel');
+        end
+    case 'STATS_pcm_models'
+        reg = [1:8];
+        sessN=[1:4];
+        modelType='specific';
+        parcelType = 'Brodmann';
+        runEffect  = 'fixed';
+        vararginoptions(varargin,{'reg','sessN','seqType','modelType','parcelType'});
+        T=[];
+        for t=sessN
+            R=load(fullfile(pcmDir,sprintf('PCM_repsup_models_%s_sess%d_%s.mat',modelType,t,parcelType)));
+            R.sessN=ones(size(R.SN))*t;
+            T=addstruct(T,R);
+        end
+        model_noRep = bsxfun(@minus,T.bayesEst,T.bayesEst(:,2));
+        % restructure back into a structure
+        S.bayesEst  = model_noRep(:);
+        S.modelInd  = [ones(size(T.SN));ones(size(T.SN))*2;ones(size(T.SN))*3;ones(size(T.SN))*4;ones(size(T.SN))*5];
+        S.SN        = repmat(T.SN,5,1);
+        S.sessN     = repmat(T.sessN,5,1);
+        S.roi       = repmat(T.roi,5,1);
+        S.seqType   = repmat(T.seqType,5,1);
+        for r=reg
+            fprintf('reg %s - model 3 vs. 2 - trained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==1 & ismember(S.modelInd,[2,3]),'split',S.sessN);
+            fprintf('reg %s - model 3 vs. 2 - untrained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==2 & ismember(S.modelInd,[2,3]),'split',S.sessN);
+            fprintf('reg %s - model 4 vs. 2 - trained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==1 & ismember(S.modelInd,[2,4]),'split',S.sessN);
+            fprintf('reg %s - model 4 vs. 2 - untrained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==2 & ismember(S.modelInd,[2,4]),'split',S.sessN);
+            fprintf('reg %s - model 4 vs. 3 - trained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==1 & ismember(S.modelInd,[3,4]),'split',S.sessN);
+            fprintf('reg %s - model 4 vs. 3 - untrained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==2 & ismember(S.modelInd,[3,4]),'split',S.sessN);
+            fprintf('reg %s - model 5 vs. 2 - trained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==1 & ismember(S.modelInd,[2,5]),'split',S.sessN);
+            fprintf('reg %s - model 5 vs. 2 - untrained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==2 & ismember(S.modelInd,[2,5]),'split',S.sessN);
+            fprintf('reg %s - model 5 vs. 4 - trained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==1 & ismember(S.modelInd,[4,5]),'split',S.sessN);
+            fprintf('reg %s - model 5 vs. 4 - untrained\n',regname{r});
+            ttestDirect(S.bayesEst,[S.modelInd S.SN],2,'paired','subset',S.roi==r & S.seqType==2 & ismember(S.modelInd,[4,5]),'split',S.sessN);
+            
+            fprintf('trained vs. untrained - model 3\n');
+            ttestDirect(S.bayesEst,[S.seqType S.SN],2,'paired','subset',S.roi==r & S.modelInd==3,'split',S.sessN);
+            fprintf('trained vs. untrained - model 4\n');
+            ttestDirect(S.bayesEst,[S.seqType S.SN],2,'paired','subset',S.roi==r & S.modelInd==4,'split',S.sessN);
+            fprintf('trained vs. untrained - model 5\n');
+            ttestDirect(S.bayesEst,[S.seqType S.SN],2,'paired','subset',S.roi==r & S.modelInd==5,'split',S.sessN);
+        end
         
     case 'PLOT_rdmCorr'
         reg = [1:8];
@@ -6474,6 +6559,16 @@ function M = pcm_repsupModel_generic
     M{4}.Ac(:,13,4)   = [ones(6,1);zeros(6,1)]; % Exe1 mean
     M{4}.Ac(:,14,5)   = [zeros(6,1);ones(6,1)]; % Exe2 mean
     
+    % Model 5: Execution + sequence specific + PERFECT correlation in sequences
+    M{5}.type         = 'feature';
+    M{5}.numGparams   = 4;
+    M{5}.name         = 'RepSup+Seq+PerfectCorr';
+    M{5}.Ac(:,1,1)    = [ones(6,1);zeros(6,1)];
+    M{5}.Ac(:,2,2)    = [zeros(6,1);ones(6,1)];
+    M{5}.Ac(:,3:8,3)  = [A;zeros(6)];       % Unique sess1 sequence patterns
+    M{5}.Ac(:,3:8,4)  = [zeros(6);A];        % Identical sess2 sequence pattterns
+
+    
 end
 function M = pcm_repsupModel_specific % TO USE
     
@@ -6518,6 +6613,20 @@ function M = pcm_repsupModel_specific % TO USE
     end;
     M{4}.Ac(:,13,19)    = [ones(6,1);zeros(6,1)];
     M{4}.Ac(:,14,20)    = [zeros(6,1);ones(6,1)];
+    
+   % Model 5: Execution + sequence specific + PERFECT correlation in session
+    M{5}.type         = 'feature';
+    M{5}.numGparams   = 14;
+    M{5}.name         = 'RepSup+Seq+PerfectCorr';
+    M{5}.Ac(:,1,1)    = [ones(6,1);zeros(6,1)];
+    M{5}.Ac(:,2,2)    = [zeros(6,1);ones(6,1)];
+    % for sequence-specific modelling- one parameter per sequence
+    for i=1:6
+        A=zeros(6);
+        A(i,i)=1;
+        M{5}.Ac(:,3:8,2+i)   = [A;zeros(6)];       % Unique exe1 sequence patterns
+        M{5}.Ac(:,3:8,8+i)   = [zeros(6);A];       % Same exe2 sequence pattterns
+    end;
 
 end
 

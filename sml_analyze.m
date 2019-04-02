@@ -110,7 +110,90 @@ switch what
             xlabel('Block number'); ylabel('Movement time');
             hold on
         end
-        
+    case 'FIT_learningCurve'
+        sn=[4:9,11:31];
+        var='BN'; % use blocknumber or day to fit
+        fig=1;
+        vararginoptions(varargin,{'sn','var','fig'});
+        D=load(fullfile(behDir,'analyze','alldata.mat'));
+        % function to fit - exponential
+        F = @(x,xdata)x(1)*exp(-x(2)*xdata)+x(3);
+        SS=[];
+        for s=sn
+            T = getrow(D,D.blockType==6&D.SN==s);
+            T.dayIndx = T.day;
+            dayIndx=unique(T.day);
+            for i=1:length(dayIndx)
+                T.dayIndx(T.dayIndx==dayIndx(i))=i;
+            end
+            % get the median
+            M=tapply(T,{var},{'MT','median'},'subset',T.isError~=1);
+            
+            if strcmp(var,'BN')
+                M.BN=(1:size(M.MT))';
+            end
+            ydata = M.MT;
+            xdata = M.(var);
+            x0 = [mean(M.MT(M.(var)==1)) 0.5 mean(M.MT(M.(var)==i))];
+            xunc = lsqcurvefit(F,x0,xdata,ydata);
+            % now calculate residuals
+            Y_pred = F(xunc,M.(var));
+            res = M.MT - Y_pred;
+            EE=[];
+            for i = 1:1000  % start the bootstrapping loop
+                % create data (fit + residuals - sample with replacement)
+                Y_new = Y_pred + sample_wr(res,1,length(res));
+                xunc_boot = lsqcurvefit(F,x0,xdata,Y_new);
+                E.x0 = xunc_boot(1);
+                E.x1 = xunc_boot(2);
+                E.x2 = xunc_boot(3);
+                E.init = i;
+                EE=addstruct(EE,E);
+            end
+            S.x0 = xunc(1);
+            S.x1 = xunc(2);
+            S.x2 = xunc(3);
+            S.x0_mean = mean(EE.x0);
+            S.x1_mean = mean(EE.x1);
+            S.x2_mean = mean(EE.x2);
+            S.x0_std  = std(EE.x0);
+            S.x1_std  = std(EE.x1);
+            S.x2_std  = std(EE.x2);
+            x0_SEM    = S.x0_std/sqrt(length(EE.x0));
+            x1_SEM    = S.x1_std/sqrt(length(EE.x1));
+            x2_SEM    = S.x2_std/sqrt(length(EE.x2));
+            ts = tinv([0.025  0.975],length(EE.x0)-1);      % T-Score
+            S.x0_CI_upp = S.x0_mean + ts(2)*x0_SEM;  
+            S.x0_CI_low = S.x0_mean + ts(1)*x0_SEM;  
+            S.x1_CI_upp = S.x1_mean + ts(2)*x1_SEM;  
+            S.x1_CI_low = S.x1_mean + ts(1)*x1_SEM; 
+            S.x2_CI_upp = S.x2_mean + ts(2)*x2_SEM;  
+            S.x2_CI_low = S.x2_mean + ts(1)*x2_SEM; 
+            S.sn      = s;
+            SS=addstruct(SS,S);
+            % refit the curve
+            % mean: x0:1167 x1:0.098; std: x0: 149.50, x1: 0.179
+            if fig
+                figure
+                plt.line(M.(var),M.MT);
+                hold on;
+                plot(xdata,F(xunc,M.(var)),'-k','LineWidth',2);
+                hold on;
+                plot(xdata,F([mean(EE.x0) mean(EE.x1) mean(EE.x2)],M.(var)),'-r','LineWidth',2);
+                xlabel(var);
+                ylabel('Movement time');
+                title(subj_name{s});
+            end
+        end
+        save(fullfile(anaDir,'exponentialFits'),'-struct','SS');
+        % to check the overlap (note: s04 VERY different)
+        figure
+        plt.hist(SS.x2_mean,'subset',SS.sn~=4);
+        hold on
+        for i=2:27
+            drawline(SS.x2_CI_upp(i),'dir','vert');
+            drawline(SS.x2_CI_low(i),'dir','vert','color',[1 0 0]);
+        end
     case 'HIST_errors_points_group'            
         D=load(fullfile(behDir,'analyze','alldata.mat'));
      
@@ -816,7 +899,23 @@ switch what
             
         end
 
-    
+    case 'CALC_dprime'
+        T = load(fullfile(anaDir,'recogScores'));
+        
+        d1 = zeros(length(T.sn),1);
+        d2 = zeros(length(T.sn),1);
+        c1 = d1;
+        c2 = d2;
+        for s=1:length(T.sn)
+            [d1(s) c1(s)] = dprime(T.hit1(s),T.falseAlarm1(s),6);
+            [d2(s) c2(s)] = dprime(T.hit2(s),T.falseAlarm2(s),6);      
+        end
+        T.dprime1 = d1;
+        T.dprime2 = d2;
+        T.bias1 = c1;
+        T.bias2 = c2;
+        save(fullfile(anaDir,'recogScore'),'-struct','T');
+   
     otherwise 
         fprintf('No such case');
         

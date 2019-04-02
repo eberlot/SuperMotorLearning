@@ -36,15 +36,13 @@ switch Type
         degs(degs == 0) = eps;
         % calculate inverse of D
         D = spdiags(1./degs, 0, size(D, 1), size(D, 2));
-        
         % calculate normalized Laplacian
         L = D * L;
     case 3
         % avoid dividing by zero
         degs(degs == 0) = eps;
         % calculate D^(-1/2)
-        D = spdiags(1./(degs.^0.5), 0, size(D, 1), size(D, 2));
-        
+        D = spdiags(1./(degs.^0.5), 0, size(D, 1), size(D, 2));   
         % calculate normalized Laplacian
         L = D * L * D;
 end

@@ -18,12 +18,12 @@ gray=[120 120 120]/255;
 lightgray=[170 170 170]/255;
 black=[0 0 0]/255;
 blue=[49,130,189]/255;
-mediumblue=[128,231,207]/255;
+mediumblue=[128,207,231]/255;
 lightblue=[158,202,225]/255;
 red=[222,45,38]/255;
 mediumred=[237,95,76]/255;
 lightred=[252,146,114]/255;
-ms=12;
+ms=7;
 
 switch(styID)
     case 'default'
@@ -41,7 +41,21 @@ switch(styID)
         opt.general.linestyle   = {'-','-','-','--','--','--'};    
     case 'Seq'
         % set different shades for colours - colour-blind friendly
-        colours                 = {'red','blue'};
+        colours                 = {red,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'o','v'};
+        opt.general.linestyle   = {'-','--'};
+        opt.general.markersize  = ms;
+    case 'SeqShade'
+        colours                 = {red,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'o','v'};
+        opt.general.linestyle   = {'-','--'};
+        opt.general.errorbars   = 'shade';
+    case 'SeqSess'
+        colours                 = {red,blue,mediumred,mediumblue,lightred,lightblue};
         canvas                  = 'blackonwhite';
         opt.save.journal        = 'brain';
         opt.general.markertype  = {'o','s'};
