@@ -2343,7 +2343,7 @@ switch(what)
         sn=[5:9,11:28,30,31];
         modelType='generic';
         regSelect='all';
-        checkCorr=0; % check if correlation exact and plot predicted Gs
+        checkCorr=1; % check if correlation exact and plot predicted Gs
         sessN=1:2; % need to be two sessions at the time
         AllReg=[];
         
@@ -2410,7 +2410,7 @@ switch(what)
                     [T,theta_hat,G_pred,theta0] = pcm_fitModelGroup(Data,M,partVec,condVec,'runEffect',runEffect,'fitScale',1,'fitAlgorithm',algorithm);  
                     figure
                     corrPred=zeros(11,1);
-                    for c=1:length(corrSpec)
+                    for c=1:11
                         subplot(3,4,c)
                         imagesc(G_pred{c});
                         corrPred(c)=calcCorr(G_pred{c});
@@ -4338,7 +4338,7 @@ switch(what)
         T = load(fullfile(distPscDir,sprintf('session3-4_dist_psc_%s',parcelType)));
         for r=roi
             figure
-            style.use('gray');
+            style.use('Sess');
             subplot(221)
             plt.bar(T.seqType,[T.psc3 T.psc4],'subset',T.regType==r&T.regSide==hemi,'leg',{'sess-3','sess-4'});
             xlabel('seqType'); ylabel('psc');

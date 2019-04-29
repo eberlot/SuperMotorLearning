@@ -1,8 +1,8 @@
 function varargout=sml1_imana_prep(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-%baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 behavDir        =[baseDir '/behavioral_data/data'];            
 imagingDir      =[baseDir '/imaging_data'];              
 imagingDirRaw   =[baseDir '/imaging_data_raw'];           
@@ -17,7 +17,8 @@ suitDir         =[baseDir '/suit'];
 physioDir       =[baseDir '/physio'];
 pcmDir          =[baseDir '/pcm_stats'];
 QCDir           =[baseDir '/quality_control'];
-
+atlasDir        = '/Users/eberlot/Documents/Data/Atlas_templates';
+wbDir           =[baseDir '/surfaceWB'];
 % update glmDir when adding new glms
 glmLocDir       ={[baseDir '/glmLoc/glmL1'],[baseDir '/glmLoc/glmL2'],[baseDir '/glmLoc/glmL3']};   % localiser glm
 glmLocSessDir   ={[baseDir '/glmLocSess/glmLocSess1'],[baseDir '/glmLocSess/glmLocSess2'],[baseDir '/glmLocSess/glmLocSess3'],[baseDir '/glmLocSess/glmLocSess4']}; % one glm for loc run per session
@@ -1401,7 +1402,22 @@ loc_AC     = {[-112 -165 -176],...
         for i=sn
             caret_importfreesurfer(['x' subj_name{i}],freesurferDir,caretDir);
         end;
-     
+    case 'SURF_WB:wb_resample'                                              % NEW        :  Reslice indiv surfaces into fs_lr standard mesh
+        % This reslices from the individual surfaces into the the fs_lr
+        % standard mesh - This replaces calls to freesurfer_registerXhem,
+        % freesurfer_mapicosahedron_xhem, & caret_importfreesurfer. It
+        % requires connectome wb to be installed, added to the bash_profile
+        % (on terminal), and updated on the startup.m file 
+        sn = [5:9,11:31];
+        vararginoptions(varargin,{'sn'});
+        atlasDir = fullfile(atlasDir, 'standard_mesh');
+        vararginoptions(varargin, {'sn'});
+        fprintf('Reslicing:\n');
+        for s=sn
+            surf_resliceFS2WB(subj_name{s}, freesurferDir, atlasDir, wbDir);
+            fprintf('%d.',s);
+        end
+        
     case '3a_GLM_SESS' % ------------- GLM per session! ------------------
         % makes the glm per subject and per session
     case 'GLM_sess_all'

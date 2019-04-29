@@ -19,7 +19,7 @@ physioDir       =[baseDir '/physio'];
 pcmDir          =[baseDir '/pcm_stats'];
 distPscDir      =[baseDir '/dist_psc_stats'];
 QCDir           =[baseDir '/quality_control'];
-
+wbDir           =[baseDir '/surfaceWB'];
 % update glmDir when adding new glms
 glmLocDir       ={[baseDir '/glmLoc/glmL1'],[baseDir '/glmLoc/glmL2'],[baseDir '/glmLoc/glmL3']};   % localiser glm
 glmLocSessDir   ={[baseDir '/glmLocSeiess/glmLocSess1'],[baseDir '/glmLocSess/glmLocSess2'],[baseDir '/glmLocSess/glmLocSess3'],[baseDir '/glmLocSess/glmLocSess4']}; % one glm for loc run per session
@@ -109,8 +109,10 @@ regType=[1:8  1:8]; % cortical areas: 1-8, BG: 8-12, cereb: 13-15
 % ------------------------- Freesurfer things -----------------------------         
 atlasA    = 'x';                                                            % freesurfer filename prefix
 atlasname = 'fsaverage_sym';                                                % freesurfer average atlas
-hemName   = {'LeftHem','RightHem'};                                         % freesurfer hemisphere folder names    
-
+hemName   = {'LeftHem','RightHem'};                                         % freesurfer hemisphere folder names   
+hem       = {'lh','rh'};
+hemI      = {'L','R'};                                                      % freesurfer WB: initials
+hemname   = {'CortexLeft','CortexRight'};
 % ------------------------- Subject things --------------------------------
 % The variables in this section must be updated for every new subject.
 
@@ -953,6 +955,112 @@ switch(what)
             end;    % hemi
         end;    % subj
     
+    case 'SURF_wb:map_psc_individ'
+        % projects individual percent signal change volume files to WorkBench surface
+        sessN=1:4;
+        sn=[5:9,11:31];
+        vararginoptions(varargin,{'sn','sessN'});
+        name={'TrainSeq','UntrainSeq'};   
+        colName={'psc_trained','psc_untrained'};
+        for ss=sessN
+            for s=sn
+                subjDir = fullfile(wbDir,subj_name{s});
+                for h=1:2
+                    white   = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                    pial    = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                    C1      = gifti(white);
+                    C2      = gifti(pial);
+                    for f=1:length(name)
+                        images{f}=fullfile(glmSessDir{ss},subj_name{s},sprintf('psc_sess%d_%s.nii',ss,name{f}));
+                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,colName{f}));
+                    end;
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{s},hemI{h},ss));
+                    G               = surf_vol2surf(C1.vertices,C2.vertices,images,'column_names',column_name, ...
+                                        'anatomicalStruct',hemname{h});
+                    save(G, outfile);
+                    fprintf('Sess: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session
+    case 'SURF_wb:map_dist_individ'
+        % projects individual distance files to WorkBench surface
+        sessN=1:4;
+        sn=[5:9,11:31];
+        vararginoptions(varargin,{'sn','sessN'});
+        name = {'dist','dist_trained','dist_untrained','dist_cross'};  
+        for ss=sessN
+            for s=sn
+                subjDir = fullfile(wbDir,subj_name{s});
+                for h=1:2
+                    white   = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                    pial    = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                    C1      = gifti(white);
+                    C2      = gifti(pial);
+                    for f = 1:length(name)
+                        images{f}    = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,name{f}));
+                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,name{f}));
+                    end;    
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.dist.sess-%d.func.gii',subj_name{s},hemI{h},ss));
+                    G               = surf_vol2surf(C1.vertices,C2.vertices,images,'column_names',column_name, ...
+                                        'anatomicalStruct',hemname{h});
+                    save(G, outfile);
+                    fprintf('Sess: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session
+    case 'SURF_wb:map_psc_group'
+        sessN=1:4;
+        sn=[5:9,11:31];
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'sessN','sn'});        
+        replaceNaN = 1;
+        for ss=sessN
+            % Loop over hemispheres.
+            for h = 1:2
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                cd(surfaceGroupDir);
+                % Loop over each input metric file in 'INname' and make a group metric file
+                % Loop over subjects...
+                for i = 1:length(sn);
+                    % ...and define the names of their metric files
+                    infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{sn(i)},hemI{h},ss));
+                    % Name the output filename for this group metric file in average surface folder
+                end;
+                outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.psc.sess-%d.func.gii',hemI{h},ss));
+                summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.psc.sess-%d.func.gii',hemI{h},ss));
+                surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'groupsummary',summaryname,'replaceNaNs',replaceNaN);   
+                fprintf('Done: %s - sess%d\n',hemI{h},ss);
+                % Verbose display to user 
+            end;
+        end;
+    case 'SURF_wb:map_dist_group'
+        sessN=1:4;
+        sn=[5:9,11:31];
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'sessN','sn'});        
+        replaceNaN = 1;
+        for ss=sessN
+            % Loop over hemispheres.
+            for h = 1:2
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                cd(surfaceGroupDir);
+                % Loop over each input metric file in 'INname' and make a group metric file
+                % Loop over subjects...
+                for i = 1:length(sn);
+                    % ...and define the names of their metric files
+                    infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{sn(i)},hemI{h},ss));
+                    % Name the output filename for this group metric file in average surface folder
+                end;
+                outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.dist.sess-%d.func.gii',hemI{h},ss));
+                summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.dist.sess-%d.func.gii',hemI{h},ss));
+                surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'groupsummary',summaryname,'replaceNaNs',replaceNaN);              
+                % Verbose display to user 
+                fprintf('Done: %s - sess%d\n',hemI{h},ss);
+            end;
+        end;
+        
     case 'BETA_get'                                                     % STEP 5.6   :  Harvest betas from rois (raw, univ, multiv prewhit)    
         sessN = 1;
         sn  = [23:25];    
@@ -2113,9 +2221,9 @@ switch(what)
         keyboard;
     
     case 'SAVE_dist'
-        sn = [4:9,11:31];
-        roi = [1:8];
-        sessN = [1:4];
+        sn = [5:9,11:31];
+        roi = 1:8;
+        sessN = 1:4;
         betaChoice='multiPW';
         parcelType='Brodmann';
         vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType'});
@@ -2223,7 +2331,7 @@ switch(what)
                 st=2;
         end
         
-        T=load(fullfile(distPscDir,sprintdf('dist_%s_ROI.mat',parcelType)));
+        T=load(fullfile(distPscDir,sprintf('dist_%s_ROI.mat',parcelType)));
         
         D.dist=[T.dist_train;T.dist_untrain];
         D.seqType=[ones(size(T.dist_train));ones(size(T.dist_train))*2];
@@ -2366,9 +2474,9 @@ switch(what)
         end    
         
     case 'CALC_corrDist'
-        reg = [1:8];
-        sn  = [4:9,11:31];
-        sessN = [1:4];
+        reg = 1:8;
+        sn  = [5:9,11:31];
+        sessN = 1:4;
         parcelType='Brodmann';
         subtract_mean=0; % do NOT subtract mean - it distorts the pattern
         vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType'});
@@ -2395,7 +2503,7 @@ switch(what)
                             data=data;
                         end
                         % crossval second moment matrix
-                        [G,Sig]     = pcm_estGCrossval(data,SI.run,SI.seqNumb);
+                        [G,~]     = pcm_estGCrossval(data,SI.run,SI.seqNumb);
                         C=corr_crossval(G,'reg','minvalue');
                         C=rsa_squareRDM(C);
                         
