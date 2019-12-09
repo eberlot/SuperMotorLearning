@@ -85,6 +85,13 @@ switch(styID)
         opt.general.markertype  = {'o','^','s'};
         opt.general.linestyle   = {'-','--','-.'};
         opt.general.markersize  = ms;
+    case 'Trained_shade'
+        colours                 = {red,mediumred,lightred};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'.','.','.'};
+        opt.general.linestyle   = {'-','--','-.'};
+        opt.general.errorbars   = 'shade';
     case 'Untrained'
         colours                 = {blue,mediumblue,lightblue};
         canvas                  = 'blackonwhite';
@@ -92,6 +99,13 @@ switch(styID)
         opt.general.markertype  = {'o','^','s'};
         opt.general.linestyle   = {'-','--','-.'};
         opt.general.markersize  = ms;
+    case 'Untrained_shade'
+        colours                 = {blue,mediumblue,lightblue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'.','.','.'};
+        opt.general.linestyle   = {'-','--','-.'};
+        opt.general.errorbars   = 'shade';
     case 'SeqShade_small'
         colours                 = {red,blue};
         canvas                  = 'blackonwhite';
@@ -99,12 +113,26 @@ switch(styID)
         opt.general.markertype  = {'.','.'};
         opt.general.linestyle   = {'-','-'};
         opt.general.errorbars   = 'shade';
+    case 'SeqShade_dotted'
+        colours                 = {red,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'.','.'};
+        opt.general.linestyle   = {'--','--'};
+        opt.general.errorbars   = 'shade';
     case 'SeqShade_light'
         colours                 = {lightred,lightblue};
         canvas                  = 'blackonwhite';
         opt.save.journal        = 'brain';
         opt.general.markertype  = {'.','.'};
-        opt.general.linestyle   = {'-','-'};
+        opt.general.linestyle   = {'--','--'};
+        opt.general.errorbars   = 'shade';
+    case 'SeqShade_4'
+        colours                 = {red,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'.','.'};
+        opt.general.linestyle   = {'-','-','--','--'};
         opt.general.errorbars   = 'shade';
     case 'SessShade_small'
         colours                 = {'darkgray','lightgray'};
@@ -127,6 +155,13 @@ switch(styID)
         opt.general.markertype  = {'.','.'};
         opt.general.linestyle   = {'-','-'};
         opt.general.errorbars   = 'shade';    
+    case 'SessUntrained_dotted'
+        colours                 = {blue,lightblue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'.','.'};
+        opt.general.linestyle   = {'--','-'};
+        opt.general.errorbars   = 'shade'; 
     case 'Region'
         colours                 = {[84 13 100]/255,[238 66 102]/255,[14 173 105]/255,[59 206 172]/255,[255 210 63]/255,[78 164 220]/255,[10 10 180]/255,[170 170 170]/255};
         canvas                  = 'blackonwhite';
@@ -152,4 +187,24 @@ switch(styID)
         opt.legend.leglocation  = 'eastoutside';
         opt.general.errorbars   = 'shade';
         opt.general.facealpha   = 0.1;
+    case '4Reg'
+        colours                 = {'green','blue','orange','magenta'};
+        opt.general.linestyle   = {'-','-','-','-','-','-','-','-',...
+                                   '--','--','--','--','--','--','--','--'};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.legend.leglocation  = 'eastoutside';
+    case '4RegSess'
+        colours                 = {'green',[144 238 144]./255','blue',[30 144 255]./255,'orange',[238 232 170]./255,'magenta',[221 160 221]./255};
+        opt.general.linestyle   = {'-','-','-','-','-','-','-','-',...
+                                   '--','--','--','--','--','--','--','--'};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.legend.leglocation  = 'eastoutside';
+    case '4Reg_dashed'
+        colours                 = {'green','blue','orange','magenta'};
+        opt.general.linestyle   = {'--','--','--','--','--','--','--','--'};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.legend.leglocation  = 'eastoutside';
 end;

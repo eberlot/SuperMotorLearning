@@ -1,8 +1,8 @@
 function varargout=sml1_imana_dist(what,varargin)
 
 % ------------------------- Directories -----------------------------------
-%baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
-baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
+baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 betaDir         =[baseDir '/betas'];
 behavDir        =[baseDir '/behavioral_data/analyze'];
 connectDir      =[baseDir '/connectivity'];
@@ -12,10 +12,9 @@ imagingDir      =[baseDir '/imaging_data'];
 anatomicalDir   =[baseDir '/anatomicals'];       
 caretDir        =[baseDir '/surfaceCaret'];              
 regDir          =[baseDir '/RegionOfInterest/']; 
-betaDir         =[baseDir '/betas'];
 BGDir           =[baseDir '/basal_ganglia_new'];
-suitDir         =[baseDir '/suit'];
-physioDir       =[baseDir '/physio'];
+%suitDir         =[baseDir '/suit'];
+%physioDir       =[baseDir '/physio'];
 pcmDir          =[baseDir '/pcm_stats'];
 distPscDir      =[baseDir '/dist_psc_stats'];
 QCDir           =[baseDir '/quality_control'];
@@ -146,7 +145,7 @@ switch(what)
     case 'PSC_create'
     % calculate psc for trained and untrained sequences - based on betas    
     vararginoptions(varargin,{'sn','sessN'});
-    name={'Seq1','Seq2','Seq3','Seq4','Seq5','Seq6','Seq7','Seq8','Seq9','Seq10','Seq11','Seq12','TrainSeq','UntrainSeq'};
+    name={'Seq1','Seq2','Seq3','Seq4','Seq5','Seq6','Seq7','Seq8','Seq9','Seq10','Seq11','Seq12','TrainSeq','UntrainSeq','AllSeq'};
     for ss=sessN
         for s=sn
            % cd(fullfile(glmSessDir{ss}, subj_name{s}));
@@ -488,7 +487,7 @@ switch(what)
             for ss=sessN
                 % go to subject's glm directory
                 cd(fullfile(glmSessDir{ss},subj_name{s}));
-                if exist(sprintf('%s_sess%d_LDC.nii',subj_name{s},ss));
+                if exist(sprintf('%s_sess%d_newTest_LDC.nii',subj_name{s},ss));
                     fprintf('Searchlight map: %s sess%d already exists - skipping\n',subj_name{s},ss);
                 else
                     % load their searchlight definitions and SPM file
@@ -496,7 +495,7 @@ switch(what)
                     load SPM;
                     SPM  = spmj_move_rawdata(SPM,fullfile(imagingDir,subj_name{s}));
                     
-                    name = sprintf('%s_sess%d',subj_name{s},ss);
+                    name = sprintf('%s_sess%d_newTest',subj_name{s},ss);
                     % run the searchlight
                     rsa.runSearchlightLDC(L,'conditionVec',conditionVec,'partition',partition,'analysisName',name,'idealBlock',block);
                     fprintf('Searchlight map: %s sess%d done\n\n\n',subj_name{s},ss);
@@ -513,7 +512,13 @@ switch(what)
         for ss=sessN
             for s = sn
                 % Load subject surface searchlight results (1 vol per paired conds)
-                LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_LDC_recalc.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
+                %LDC_file            =
+                %fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_newTest_LDC.nii',subj_name{s},ss));
+                %%NOTE! newTest is a newer version, done for session 2
+                %LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_LDC.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
+                LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_newTest_LDC.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
+                %LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_LDC_recalc.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
+                %LDC_file            = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_LDC_recalc_test.nii',subj_name{s},ss)); % searchlight nifti - use the recalculated version
                 [subjDir,fname,ext] = fileparts(LDC_file);
                 cd(subjDir);
                 
@@ -710,7 +715,7 @@ switch(what)
             Y_trained=fullfile(surfGroupDir,sprintf('%s.dist_trained_sess%d.metric',hem{h},sessN));
             Y_untrained=fullfile(surfGroupDir,sprintf('%s.dist_untrained_sess%d.metric',hem{h},sessN));
             
-            X=caret_crosssection(border,fullfile(surfGroupDir,[hem{h} '.INFLATED.coord']));
+           % X=caret_crosssection(border,fullfile(surfGroupDir,[hem{h} '.INFLATED.coord']));
             S=caret_crosssection(border,fullfile(surfGroupDir,[hem{h} '.surface_shape']));
             Y.tr=caret_crosssection(border,Y_trained);
             Y.utr=caret_crosssection(border,Y_untrained);
@@ -794,6 +799,7 @@ switch(what)
     case 'SEARCH_recalc'
         % need to recalculate searchlights for s04-s28 (old prewhitening)
         sn=[4:9,11:31];
+        vararginoptions(varargin,{'sn'});
          for s=sn
             for ss=1:4
                 % load SPM
@@ -801,13 +807,17 @@ switch(what)
                 cd(glmDir);
                 load SPM;
                 idx = mean(diag(SPM.xX.Bcov));
+                %idx = mean(diag(SPM.xX.Bcov))*SPM.xX.trRV; % just tried,didn't work
                 V = spm_vol(fullfile(sprintf('%s_sess%d_LDC.nii',subj_name{s},ss)));
                 V2 = spm_read_vols(V);
-                if s<29 % for new subjects no need
+             %   if s<29 % for new subjects no need
+             for i=1:size(V2,4)
+                 V3(:,:,:,i) = V2(:,:,:,i).*(k2./idx*SPM.xX.trRV);
+             end
                     V3 = V2./idx;
-                else
-                    V3 = V2;
-                end
+             %   else
+              %      V3 = V2;
+              %  end
                 newName = sprintf('%s_sess%d_LDC_recalc.nii',subj_name{s},ss);
                 for i=1:size(V,1)
                     Z=NaN(V(1).dim);
@@ -827,8 +837,26 @@ switch(what)
                 fprintf('Done:\t %s   sess-%d\n',subj_name{s},ss);
             end; % session
         end; % subject
-        
-        
+    case 'SEARCH_check'
+        %check if searchlights exist
+        sn = [5:9,11:31];
+        sessN = 4;
+        vararginoptions(varargin,{'sn','sessN'});
+        for ss=sessN
+            idx=0;
+            for s=sn
+                % go to subject's glm directory
+                cd(fullfile(glmSessDir{ss},subj_name{s}));
+                if exist(sprintf('%s_sess%d_newTest_LDC.nii',subj_name{s},ss));
+                    fprintf('Searchlight map: %s sess%d already exists!\n',subj_name{s},ss);
+                else
+                    fprintf('Searchlight map MISSING: %s sess%d!!!!\n',subj_name{s},ss);
+                    idx=idx+1;
+                end
+            end
+            fprintf('\nMissing %d searchlights for sess-%d!!\n',idx,ss);
+        end
+
     case 'SEARCH_dist_corr'
         % run correlation distance as searchlight
         sn = [4:9,11:25];
@@ -959,9 +987,10 @@ switch(what)
         % projects individual percent signal change volume files to WorkBench surface
         sessN=1:4;
         sn=[5:9,11:31];
-        vararginoptions(varargin,{'sn','sessN'});
-        name={'TrainSeq','UntrainSeq'};   
-        colName={'psc_trained','psc_untrained'};
+        name={'AllSeq','TrainSeq','UntrainSeq'};
+        colName={'psc_all','psc_trained','psc_untrained'};
+        vararginoptions(varargin,{'sn','sessN','name','colName'});
+
         for ss=sessN
             for s=sn
                 subjDir = fullfile(wbDir,subj_name{s});
@@ -988,6 +1017,7 @@ switch(what)
         sn=[5:9,11:31];
         vararginoptions(varargin,{'sn','sessN'});
         name = {'dist','dist_trained','dist_untrained','dist_cross'};  
+        OUTname = {'dist_all','dist_trained','dist_untrained','dist_cross'};  
         for ss=sessN
             for s=sn
                 subjDir = fullfile(wbDir,subj_name{s});
@@ -998,22 +1028,177 @@ switch(what)
                     C2      = gifti(pial);
                     for f = 1:length(name)
                         images{f}    = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,name{f}));
-                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,name{f}));
+                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,OUTname{f}));
                     end;    
                     outfile         = fullfile(subjDir,sprintf('%s.%s.dist.sess-%d.func.gii',subj_name{s},hemI{h},ss));
                     G               = surf_vol2surf(C1.vertices,C2.vertices,images,'column_names',column_name, ...
                                         'anatomicalStruct',hemname{h});
+                    % filter out any crazy values (on the border of mask)
+                    for c=1:size(G.cdata,2)
+                        G.cdata(G.cdata(:,c)>5,c)=0;
+                        G.cdata(G.cdata(:,c)<-5,c)=0;
+                    end
                     save(G, outfile);
                     fprintf('Sess: %d, Subj: %d, Hem: %d\n',ss,s,h);
                 end; % hemi
             end; % sn
         end; % session
+    case 'SURF_wb:map_seq_diff_individ'
+        %calculate the difference in distances per individual (trained -
+        %untrained)
+        sessN=1:4;
+        sn=[5:9,11:31];
+        metric = 'dist'; % dist or psc
+        name = {'dist_trained','dist_untrained'};
+        vararginoptions(varargin,{'sn','sessN','name','metric'});
+        for ss=sessN
+            for s=sn
+                subjDir = fullfile(wbDir,subj_name{s});
+                for h=1:2
+                    white   = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                    pial    = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                    C1      = gifti(white);
+                    C2      = gifti(pial);
+                    switch metric
+                        case 'dist'
+                            INname1 = sprintf('%s_sess%d_%s.nii',subj_name{s},ss,name{1});
+                            INname2 = sprintf('%s_sess%d_%s.nii',subj_name{s},ss,name{2});
+                        case 'psc'
+                            INname1 = sprintf('%s_sess%d_%s.nii',metric,ss,name{1});
+                            INname2 = sprintf('%s_sess%d_%s.nii',metric,ss,name{2});
+                    end
+                    t       = fullfile(glmSessDir{ss},subj_name{s},INname1); % trained
+                    ut      = fullfile(glmSessDir{ss},subj_name{s},INname2); % untrained
+                    
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.%sDiff.sess-%d.func.gii',subj_name{s},hemI{h},metric,ss));
+                    G_trained       = surf_vol2surf(C1.vertices,C2.vertices,t,'column_names',{sprintf('%sDifference',metric)}, ...
+                                        'anatomicalStruct',hemname{h});                     
+                    G_untrained     = surf_vol2surf(C1.vertices,C2.vertices,ut,'column_names',{sprintf('%sDifference',metric)}, ...
+                                        'anatomicalStruct',hemname{h});
+                    G = G_trained;
+                    G.cdata = G.cdata - G_untrained.cdata;
+                    % filter out any crazy values (on the border of mask)
+                    for c=1:size(G.cdata,2)
+                        G.cdata(G.cdata(:,c)>5,c)=0;
+                        G.cdata(G.cdata(:,c)<-5,c)=0;
+                    end
+                    save(G, outfile);
+                    fprintf('Sess: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session
+    case 'SURF_wb:map_dist_sess_diff_individ'
+        %calculate the difference in distances across sessions
+        %(1-2, 2-3, 3-4) for trained and control
+        sessTr = 1:3;
+        sn=[5:9,11:31];
+        vararginoptions(varargin,{'sn','sessN'});
+        name = {'dist','dist_trained','dist_untrained','dist_cross'};  
+        OUTname = {'dist_all','dist_trained','dist_untrained','dist_cross'};  
+        for ss=sessTr
+            for s=sn
+                subjDir = fullfile(wbDir,subj_name{s});
+                for h=1:2
+                    white   = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                    pial    = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                    C1      = gifti(white);
+                    C2      = gifti(pial);
+                    for f = 1:length(name)
+                        s1  = fullfile(glmSessDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,name{f}));
+                        s2  = fullfile(glmSessDir{ss+1},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss+1,name{f}));
+                        column_name{f} = fullfile(sprintf('dist_sessTr_%d-%d_%s.nii',ss,ss+1,OUTname{f}));
+                        G1  = surf_vol2surf(C1.vertices,C2.vertices,s1,'anatomicalStruct',hemname{h});
+                        G2  = surf_vol2surf(C1.vertices,C2.vertices,s2,'anatomicalStruct',hemname{h});
+                        data(:,f) = G2.cdata - G1.cdata;
+                    end;      
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.dist_sessTr_%d-%d.func.gii',subj_name{s},hemI{h},ss,ss+1));
+                    G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+                    % filter out any crazy values (on the border of mask)
+                 %   for c=1:size(G.cdata,2)
+                 %       G.cdata(G.cdata(:,c)>5,c)=0;
+                  %      G.cdata(G.cdata(:,c)<-5,c)=0;
+                  %  end
+                    save(G, outfile);
+                    fprintf('Sess transition: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session transition
+    case 'SURF_wb:map_psc_sess_diff_individ'
+         %calculate the difference in distances across sessions
+        %(1-2, 2-3, 3-4) for trained and control
+        sessTr = 1:3;
+        sn=[5:9,11:31];
+        vararginoptions(varargin,{'sn','sessTr'});
+        name = {'psc_all','psc_trained','psc_untrained'};  
+        nameSeq = {'AllSeq','TrainSeq','UntrainSeq'};
+        for ss=sessTr
+            for s=sn
+                subjDir = fullfile(wbDir,subj_name{s});
+                for h=1:2
+                    white   = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                    pial    = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                    C1      = gifti(white);
+                    C2      = gifti(pial);
+                    for f = 1:length(name)
+                        s1  = fullfile(glmSessDir{ss},subj_name{s},sprintf('psc_sess%d_%s.nii',ss,nameSeq{f}));
+                        s2  = fullfile(glmSessDir{ss+1},subj_name{s},sprintf('psc_sess%d_%s.nii',ss+1,nameSeq{f}));
+                        column_name{f} = fullfile(sprintf('psc_sessTr_%d-%d_%s.nii',ss,ss+1,name{f}));
+                        G1  = surf_vol2surf(C1.vertices,C2.vertices,s1,'anatomicalStruct',hemname{h});
+                        G2  = surf_vol2surf(C1.vertices,C2.vertices,s2,'anatomicalStruct',hemname{h});
+                        data(:,f) = G2.cdata - G1.cdata;
+                    end;      
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.psc_sessTr_%d-%d.func.gii',subj_name{s},hemI{h},ss,ss+1));
+                    G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+                    % filter out any crazy values (on the border of mask)
+                    for c=1:size(G.cdata,2)
+                        G.cdata(G.cdata(:,c)>10,c)=0;
+                        G.cdata(G.cdata(:,c)<-10,c)=0;
+                    end
+                    save(G, outfile);
+                    fprintf('Sess transition: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session transition
+    case 'SURF_wb:map_psc_zscore_individ'
+        % map psc as zscores
+        sessN = 1:4;
+        sn=[5:9,11:31];
+        vararginoptions(varargin,{'sn','sessTr'});
+        name = {'psc_trained','psc_untrained'};  
+        for s=sn
+            for h=1:2
+                for ss=sessN
+                    subjDir = fullfile(wbDir,subj_name{s});
+                    G1  = gifti(fullfile(subjDir,sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{s},hemI{h},ss)));
+                    for f = 1:length(name)
+                        % fist subtract the mean
+                        X = bsxfun(@minus,G1.cdata(:,f),nanmean(G1.cdata(:,f),1));
+                        % And make standard deviation equal to 1, per column:
+                        data(:,f) = bsxfun(@rdivide,X,nanstd(X,[],1));
+                        column_name{f} = sprintf('Sess%d_Z_%s',ss,name{f});
+                    end;
+                    outfile         = fullfile(subjDir,sprintf('%s.%s.Z_psc.sess-%d.func.gii',subj_name{s},hemI{h},ss));
+                    G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+                    % filter out any crazy values (on the border of mask)
+                    for c=1:size(G.cdata,2)
+                        G.cdata(G.cdata(:,c)>15,c)=0;
+                        G.cdata(G.cdata(:,c)<-15,c)=0;
+                    end
+                    save(G, outfile);
+                    fprintf('Session: %d, Subj: %d, Hem: %d\n',ss,s,h);
+                end; % session
+            end; % hemi
+        end; % subject
+        
     case 'SURF_wb:map_psc_group'
         sessN=1:4;
         sn=[5:9,11:31];
-        atlas = 'FS_LR_164'; % 164 or 42
-        vararginoptions(varargin,{'sessN','sn'});        
+        atlas = 'fs_LR_164'; % 164 or 42
+        metric = 'psc'; % psc or Z_psc
         replaceNaN = 1;
+        INname = {'psc_all','psc_trained','psc_untrained'}; % psc_trained or Z_psc_trained
+        vararginoptions(varargin,{'sessN','sn','metric','INname','replaceNaN'});
+        
         for ss=sessN
             % Loop over hemispheres.
             for h = 1:2
@@ -1021,24 +1206,55 @@ switch(what)
                 surfaceGroupDir = fullfile(wbDir,atlas);
                 cd(surfaceGroupDir);
                 % Loop over each input metric file in 'INname' and make a group metric file
-                % Loop over subjects...
-                for i = 1:length(sn);
-                    % ...and define the names of their metric files
-                    infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{sn(i)},hemI{h},ss));
-                    % Name the output filename for this group metric file in average surface folder
-                end;
-                outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.psc.sess-%d.func.gii',hemI{h},ss));
-                summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.psc.sess-%d.func.gii',hemI{h},ss));
-                surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'groupsummary',summaryname,'replaceNaNs',replaceNaN);   
+                for j=1:length(INname)
+                    % Loop over subjects...
+                    for i = 1:length(sn);
+                        % ...and define the names of their metric files
+                        infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.%s.sess-%d.func.gii',subj_name{sn(i)},hemI{h},metric,ss));
+                        % Name the output filename for this group metric file in average surface folder
+                    end;
+                    outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname{j},ss));
+                    summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.%s.sess-%d.func.gii',hemI{h},INname{j},ss));
+                    surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'inputcol',j,'groupsummary',summaryname,'replaceNaNs',replaceNaN);
+                end
                 fprintf('Done: %s - sess%d\n',hemI{h},ss);
-                % Verbose display to user 
             end;
         end;
     case 'SURF_wb:map_dist_group'
         sessN=1:4;
         sn=[5:9,11:31];
-        atlas = 'FS_LR_164'; % 164 or 42
+        atlas = 'fs_LR_164'; % 164 or 42
         vararginoptions(varargin,{'sessN','sn'});        
+        INname    = {'dist_all','dist_trained','dist_untrained','dist_cross'};
+        replaceNaN = 1;
+        for ss=sessN
+            % Loop over hemispheres.
+            for h = 1:2
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                cd(surfaceGroupDir);
+                % Loop over each input metric file in 'INname' and make a group metric file
+                for j=1:length(INname)
+                    % Loop over subjects...
+                    for i = 1:length(sn);
+                        % ...and define the names of their metric files
+                        infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.dist.sess-%d.func.gii',subj_name{sn(i)},hemI{h},ss));
+                        % Name the output filename for this group metric file in average surface folder
+                    end;
+                    outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname{j},ss));
+                    summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.%s.sess-%d.func.gii',hemI{h},INname{j},ss));
+                    surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'inputcol',j,'groupsummary',summaryname,'replaceNaNs',replaceNaN);     
+                end
+                fprintf('Done: %s - sess%d\n',hemI{h},ss);
+            end;
+        end;
+    case 'SURF_wb:map_seqDiff_group' 
+        sessN=1:4;
+        sn=[5:9,11:31];
+        atlas = 'fs_LR_164'; % 164 or 42
+        metric = 'dist'; % dist or psc
+        vararginoptions(varargin,{'sessN','sn','metric'});
+        INname    = sprintf('%sDifference',metric);
         replaceNaN = 1;
         for ss=sessN
             % Loop over hemispheres.
@@ -1050,109 +1266,601 @@ switch(what)
                 % Loop over subjects...
                 for i = 1:length(sn);
                     % ...and define the names of their metric files
-                    infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.psc.sess-%d.func.gii',subj_name{sn(i)},hemI{h},ss));
+                    infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.%sDiff.sess-%d.func.gii',subj_name{sn(i)},hemI{h},metric,ss));
                     % Name the output filename for this group metric file in average surface folder
                 end;
-                outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.dist.sess-%d.func.gii',hemI{h},ss));
-                summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.dist.sess-%d.func.gii',hemI{h},ss));
-                surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'groupsummary',summaryname,'replaceNaNs',replaceNaN);              
-                % Verbose display to user 
+                outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname,ss));
+                summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.%s.sess-%d.func.gii',hemI{h},INname,ss));
+                surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'inputcol',1,'groupsummary',summaryname,'replaceNaNs',replaceNaN);
                 fprintf('Done: %s - sess%d\n',hemI{h},ss);
             end;
         end;
+    case 'SURF_wb:map_sessTrans_group' 
+        sessTr=1:3;
+        sn=[5:9,11:31];
+        atlas       = 'fs_LR_164'; % 164 or 42
+        INname      = {'psc_all','psc_trained','psc_untrained'}; % psc or dist: dist, dist_trained, dist_untrained
+        metric      = 'psc'; % psc or dist
+        vararginoptions(varargin,{'sessN','sn','metric','INname'});              
+        replaceNaN = 1;
+        for ss=sessTr
+            % Loop over hemispheres.
+            for h = 1:2
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                cd(surfaceGroupDir);
+                % Loop over each input metric file in 'INname' and make a group metric file
+                for j=1:length(INname)
+                    % Loop over subjects...
+                    for i = 1:length(sn);
+                        % ...and define the names of their metric files
+                        infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.%s_sessTr_%d-%d.func.gii',subj_name{sn(i)},hemI{h},metric,ss,ss+1));
+                        % Name the output filename for this group metric file in average surface folder
+                    end;
+                    outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.%s.sessTr_%d-%d.func.gii',hemI{h},INname{j},ss,ss+1));
+                    summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.sessTr_%d-%d_%s.func.gii',hemI{h},ss,ss+1,INname{j}));
+                    surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'inputcol',j,'groupsummary',summaryname,'replaceNaNs',replaceNaN);     
+                end
+                fprintf('Done: %s - sessTr:%d-%d\n',hemI{h},ss,ss+1);
+            end;
+        end;
+    case 'SURF_wb:map_dist_sessTrans_group'
+        sessTr=1:3;
+        sn=[5:9,11:31];
+        atlas = 'fs_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'sessN','sn'});        
+        INname    = {'dist_trained','dist_untrained'};
+        replaceNaN = 1;
+        for ss=sessTr
+            % Loop over hemispheres.
+            for h = 1:2
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                cd(surfaceGroupDir);
+                % Loop over each input metric file in 'INname' and make a group metric file
+                for j=1:length(INname)
+                    % Loop over subjects...
+                    for i = 1:length(sn);
+                        % ...and define the names of their metric files
+                        infilenames{i} = fullfile(wbDir,subj_name{sn(i)},sprintf('%s.%s.dist_sessTr_%d-%d.func.gii',subj_name{sn(i)},hemI{h},ss,ss+1));
+                        % Name the output filename for this group metric file in average surface folder
+                    end;
+                    outfilenames    = fullfile(surfaceGroupDir,sprintf('%s.%s.sessTr_%d-%d.func.gii',hemI{h},INname{j},ss,ss+1));
+                    summaryname     = fullfile(surfaceGroupDir,sprintf('%s.group.sessTr_%d-%d_%s.func.gii',hemI{h},ss,ss+1,INname{j}));
+                    surf_groupGiftis(infilenames,'outfilenames',{outfilenames},'inputcol',j+1,'groupsummary',summaryname,'replaceNaNs',replaceNaN);     
+                end
+                fprintf('Done: %s - sessTr:%d-%d\n',hemI{h},ss,ss+1);
+            end;
+        end;
+    case 'SURF_wb:cSPM_group'
+        % calculate mean statistics (t-test)
+        metric = 'psc'; % psc or dist
+        sessN = 1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'metric','sessN','atlas'});
+        switch metric
+            case 'psc'
+                INname = {'psc_all','psc_trained','psc_untrained'};
+            case 'dist'
+                INname = {'dist_all','dist_trained','dist_untrained','dist_cross'};
+        end
+        for h=1:2
+            indx=1;
+            fprintf('\n%s: session:',hemI{h});
+            for ss=sessN
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                for n=1:length(INname)
+                    inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname{n},ss));
+                    G1 = gifti(inFile);
+                    cSPM = surf_getcSPM('onesample_t','data',G1.cdata,'maskthreshold',0.7);
+                    outFile = sprintf('%s.%s.sess-%d',hemI{h},INname{n},ss);
+                    save(fullfile(surfaceGroupDir,sprintf('cSPM_%s.mat',outFile)),'cSPM');
+                    data(:,indx)=cSPM.con(1).con; % mean
+                    data(:,indx+length(sessN)*length(INname))=cSPM.con(1).Z; % T
+                    column_name{indx}=['mean_' outFile];
+                    column_name{indx+length(sessN)*length(INname)}=['T_' outFile];
+                    indx=indx+1;
+                end
+                fprintf('%d.',ss);
+            end
+            % here save the new functional files (per hemisphere)
+            G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            summaryName = fullfile(surfaceGroupDir,sprintf('%s.summary_%s.func.gii',hemI{h},metric));
+            save(G2,summaryName);
+        end
+    case 'SURF_wb:cSPM_diff_group'
+        sessN = 1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric = 'dist'; % dist or psc
+        vararginoptions(varargin,{'metric','sessN','atlas'});
+        INname = sprintf('%sDifference',metric);
+        for h=1:2
+            indx=1;
+            fprintf('\n%s: session:',hemI{h});
+            for ss=sessN
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname,ss));
+                G1 = gifti(inFile);
+                cSPM = surf_getcSPM('onesample_t','data',G1.cdata,'maskthreshold',0.7);
+                outFile = sprintf('%s.%s.sess-%d',hemI{h},INname,ss);
+                save(fullfile(surfaceGroupDir,sprintf('cSPM_%s.mat',outFile)),'cSPM');
+                data(:,indx)=cSPM.con(1).con; % mean
+                data(:,indx+length(sessN))=cSPM.con(1).Z; % T
+                column_name{indx}=['mean_' outFile];
+                column_name{indx+length(sessN)}=['T_' outFile];
+                indx=indx+1;
+                
+                fprintf('%d.',ss);
+            end
+            % here save the new functional files (per hemisphere)
+            G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            summaryName = fullfile(surfaceGroupDir,sprintf('%s.summary_%s.func.gii',hemI{h},INname));
+            save(G2,summaryName);
+        end
+    case 'SURF_wb:cSPM_sessTrans_group'
+        % calculate mean statistics (t-test)
+        sessTr = 1:3;
+        atlas = 'FS_LR_164'; % 164 or 42
+        INname = {'dist_all','dist_trained','dist_untrained'}; % dist: dist, dist_trained, dist_untrained
+        metric = 'dist'; % dist or psc
+        useSmooth = 0;
+        vararginoptions(varargin,{'metric','sessN','atlas','INname','useSmooth'});
+
+        for h=1:2
+            indx=1;
+            fprintf('\n%s: session transition:',hemI{h});
+            for ss=sessTr
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                for n=1:length(INname)
+                    if useSmooth
+                        inFile = fullfile(surfaceGroupDir,sprintf('s%s.%s.sessTr_%d-%d.func.gii',hemI{h},INname{n},ss,ss+1));
+                        outFile = sprintf('s%s.%s.sessTr_%d-%d',hemI{h},INname{n},ss,ss+1);
+                    else
+                        inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sessTr_%d-%d.func.gii',hemI{h},INname{n},ss,ss+1));
+                        outFile = sprintf('%s.%s.sessTr_%d-%d',hemI{h},INname{n},ss,ss+1);
+                    end
+                    G1 = gifti(inFile);
+                    cSPM = surf_getcSPM('onesample_t','data',G1.cdata,'maskthreshold',0.7);
+                    save(fullfile(surfaceGroupDir,sprintf('cSPM_%s.mat',outFile)),'cSPM');
+                    data(:,indx)=cSPM.con(1).con; % mean
+                    data(:,indx+length(sessTr)*length(INname))=cSPM.con(1).Z; % T
+                    column_name{indx}=['mean_' outFile];
+                    column_name{indx+length(sessTr)*length(INname)}=['T_' outFile];
+                    indx=indx+1;
+                end
+                fprintf('%d.',ss);
+            end
+            % here save the new functional files (per hemisphere)
+            G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            if useSmooth
+                summaryName = fullfile(surfaceGroupDir,sprintf('s%s.summary_%s_sessTrans.func.gii',hemI{h},metric));
+            else
+                summaryName = fullfile(surfaceGroupDir,sprintf('%s.summary_%s_sessTrans.func.gii',hemI{h},metric));
+            end
+            save(G2,summaryName);
+        end
+    case 'SURF_wb:zscore'
+        % zscore psc / dist maps
+        metric = 'psc'; % psc or dist
+        sessN = 1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'metric','sessN','atlas'});
+        switch metric
+            case 'psc'
+                INname = {'psc_trained','psc_untrained'};
+            case 'dist'
+                INname = {'dist_all','dist_trained','dist_untrained','dist_cross'};
+        end
+        for h=1:2
+            indx=1;
+            fprintf('\n%s: session:',hemI{h});
+            for ss=sessN
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                for n=1:length(INname)
+                    inFile = fullfile(surfaceGroupDir,sprintf('%s.group.%s.sess-%d.func.gii',hemI{h},INname{n},ss));
+                    G1 = gifti(inFile);
+                    % fist subtract the mean
+                    X = bsxfun(@minus,G1.cdata,nanmean(G1.cdata,1));
+                    % And make standard deviation equal to 1, per column:
+                    data(:,indx) = bsxfun(@rdivide,X,nanstd(X,[],1));
+                    outName = sprintf('%s.%s.sess-%d',hemI{h},INname{n},ss);
+                    column_name{indx}=['Z_' outName];
+                    indx=indx+1;
+                end
+                fprintf('%d.',ss);
+            end
+            % here save the new functional files (per hemisphere)
+            G2 = surf_makeLabelGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            %G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            summaryName = fullfile(surfaceGroupDir,sprintf('%s.Zscore_%s.func.gii',hemI{h},metric));
+            save(G2,summaryName);
+        end
+    case 'SURF_wb:zscore_diff'
+        metric = 'psc'; % psc or dist
+        sessN = 1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'metric','sessN','atlas'});
+        switch metric
+            case 'psc'
+                col = [1,2]; mu = 2;
+            case 'dist'
+                col = [2,3]; mu = 4;
+        end
+        surfaceGroupDir = fullfile(wbDir,atlas);
+        
+        for h=1:2
+            indx=1;
+            fprintf('\n%s: session:',hemI{h});
+            inFile = fullfile(surfaceGroupDir,sprintf('%s.Zscore_%s.func.gii',hemI{h},metric));
+            G1 = gifti(inFile);
+            for ss=sessN
+                data(:,indx) = G1.cdata(:,(ss-1)*mu+col(1))-G1.cdata(:,(ss-1)*mu+col(2));
+                column_name{indx}=[sprintf('Z_difference_sess%d_%s',ss,metric)];
+                indx=indx+1;
+                fprintf('%d.',ss);
+            end
+            % here save the new functional files (per hemisphere)
+            G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            summaryName = fullfile(surfaceGroupDir,sprintf('%s.ZscoreDifference_%s.func.gii',hemI{h},metric));
+            save(G2,summaryName);
+        end
+    case 'SURF_wb:smooth_individ'
+        %metric      = 'psc'; % psc, dist, distDifference, dist_sessTrans
+        metric      = {'sessTr_1-2','sessTr_2-3','sessTr_3-4'};
+        atlas       = 'FS_LR_164'; % 164 or 42
+        INname      = {'psc_all','psc_trained','psc_untrained'}; % psc or dist
+        kernel      = 2;
+        vararginoptions(varargin,{'metric','sessN','kernel','INname'});
+        
+        % for ss=sessN
+        surfaceGroupDir = fullfile(wbDir,atlas);
+        for f=1:length(INname)
+            for h=1:2
+                for m=1:length(metric)
+                    %inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},metric,ss));
+                    inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.%s.func.gii',hemI{h},INname{f},metric{m}));
+                    surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+                    surf_smooth(inFile,'surf',surfFile,'kernel',kernel);
+                end
+            end
+        end
+    case 'SURF_wb:smooth_group'
+        metric = 'summary_psc'; % psc, dist, distDifference, dist_sessTrans
+        atlas = 'FS_LR_164'; % 164 or 42
+        kernel = 2;
+        vararginoptions(varargin,{'metric','sessN','kernel'});
+        
+        % for ss=sessN
+        for h=1:2
+            surfaceGroupDir = fullfile(wbDir,atlas);
+            %inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},metric,ss));
+            inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.func.gii',hemI{h},metric));
+            surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+            surf_smooth(inFile,'surf',surfFile,'kernel',kernel);
+        end
+        %  end
+    case 'SURF_wb:map_group_diff'
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric = 'dist';
+        vararginoptions(varargin,{'metric'});
+        switch metric
+            case 'dist'
+                m=4;
+                a=2;
+            case 'psc'
+                m=2;
+                a=1;
+        end
+        % Loop over hemispheres.
+        for h = 1:2
+            for ss=sessN
+                % Go to the directory where the group surface atlas resides
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                inFile     = fullfile(surfaceGroupDir,sprintf('%s.summary_%s.func.gii',hemI{h},metric));
+                I = gifti(inFile);
+                Data(:,ss) = I.cdata(:,(ss-1)*m+a)-I.cdata(:,(ss-1)*m+a+1); % trained - untrained
+                column_name{ss}=sprintf('%s_sess-%d',metric,ss);
+            end;
+            if strcmp(metric,'dist') % just so it can be modulated in workbench (view); otherwise numbers too small
+                Data = Data.*100;
+            end
+            G = surf_makeFuncGifti(Data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            outFile = fullfile(surfaceGroupDir,sprintf('%s.group.%sDiff.func.gii',hemI{h},metric));
+            save(G,outFile);
+            % smooth in addition
+            surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+            surf_smooth(outFile,'surf',surfFile,'kernel',2);
+        end;
+    case 'SURF_wb:map_group_transDiff' % this in use for session difference / transition !!!
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric = 'dist';
+        seqType = {'all','trained','untrained'};
+        vararginoptions(varargin,{'metric'});
+        switch metric
+            case 'dist'
+                m=4;
+                a=1;
+            case 'psc'
+                m=2;
+                a=1;
+        end
+        % Loop over hemispheres.
+        % Go to the directory where the group surface atlas resides
+        surfaceGroupDir = fullfile(wbDir,atlas);
+        for h = 1:2
+            inFile     = fullfile(surfaceGroupDir,sprintf('%s.summary_%s.func.gii',hemI{h},metric));
+            I = gifti(inFile);
+            indx=1;
+            for ss=1:3 % transition
+                for st =1:3
+                    % dist
+                    Data(:,indx) = I.cdata(:,(ss)*m+a+(st-1))-I.cdata(:,(ss-1)*m+a+(st-1)); 
+                    column_name{indx}=sprintf('%s_sess-%d-%d_seqType-%s',metric,ss,ss+1,seqType{st});
+                    % T_values
+                    if strcmp(metric,'dist')
+                        Data(:,indx+1) = I.cdata(:,(ss)*m+a+(st-1)+16)-I.cdata(:,(ss-1)*m+a+(st-1)+16); 
+                        column_name{indx+1}=sprintf('T-value_%s_sess-%d-%d_seqType-%s',metric,ss,ss+1,seqType{st});
+                        indx = indx+2;
+                    else
+                        indx=indx+1;
+                    end 
+                end
+            end;
+          %  if strcmp(metric,'dist') % just so it can be modulated in workbench (view); otherwise numbers too small
+          %      Data = Data.*100;
+           % end
+            G = surf_makeFuncGifti(Data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            outFile = fullfile(surfaceGroupDir,sprintf('%s.group.%sDiff_transitions_groupVersion.func.gii',hemI{h},metric));
+            save(G,outFile);
+            % smooth in addition
+            surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+            surf_smooth(outFile,'surf',surfFile,'kernel',1);
+        end;
+    case 'SURF_wb:make_distMask' %old
+        % make a mask based on group T-value of distances
+        mask_thres = 1.71; % mask threshold (here so that t-map is p<.5)
+        atlas = 'FS_LR_164'; % 164 or 42
+        for h=1:2
+            % first load the surface
+            surfaceGroupDir = fullfile(wbDir,atlas);
+            surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+            inFile = fullfile(surfaceGroupDir,sprintf('%s.summary_dist.func.gii',hemI{h}));
+            G = gifti(inFile);
+            for ss=1:4 % across regions
+                DD(:,ss)=G.cdata(:,(4*4)+(ss-1)*4+1); % get the correct t-map
+            end
+            maxDist(:,1)    = max(DD,[],2); % here the maximum distance 
+            % first save the maxDist mask
+            outFile         = fullfile(surfaceGroupDir,sprintf('%s.maskDist.func.gii',hemI{h}));
+            G = surf_makeFuncGifti(maxDist,'anatomicalStruct',hemname{h},'columnNames',{'maxDist_acrossSess'});
+            save(G,outFile);
+            % now remove clusters + threshold
+            outFile2 = fullfile(surfaceGroupDir,sprintf('%s.maskDist_clusters.func.gii',hemI{h}));
+            comm=sprintf('wb_command -metric-find-clusters %s %s %f %f %s',...
+                surfFile,outFile,mask_thres,7,outFile2);
+            fprintf('%s\n',comm)
+            [err,out]=system(comm);
+            % last smooth
+            surf_smooth(outFile2,'surf',surfFile,'kernel',1);
+            mask = gifti(fullfile(surfaceGroupDir,sprintf('s%s.maskDist_clusters.func.gii',hemI{h})));
+            save(fullfile(surfaceGroupDir,sprintf('%s.maskDist.mat',hemI{h})),'mask'); % save binary values as a mask (for roi definitions)
+        end
+    case 'SURF_wb:defineTessels' %old
+        nNode = 642; % 42, 162, 362, 642, 1002, 1442
+        thres = 0.5; % how much of the tessel needs to have significant distance
+        atlas = 'FS_LR_164'; % 164 or 42
+        vararginoptions(varargin,{'nNode','thres'});
+        tessel = cell(2,1);
+        for h=1:2
+             surfaceGroupDir = fullfile(wbDir,atlas);
+             M=load(fullfile(surfaceGroupDir,sprintf('%s.maskDist.mat',hemI{h})));
+             T = gifti(fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.icosahedron-%d.label.gii',hemI{h},nNode)));
+           %  tessel{h} = unique(M.mask.cdata.*double(T.cdata));
+             countAll=zeros(nNode,1); countMask=countAll;
+             for i=1:numel(unique(T.cdata))
+                 countAll(i)=sum(T.cdata==i);
+                 countMask(i)=sum(double(T.cdata).*M.mask.cdata==i);
+             end
+             prop=countMask./countAll;
+             tessel{h}=find(prop>thres);
+        end
+        varargout{1} = tessel; % per hemisphere region definitions
+    case 'SURF_wb:speed_mask'
+        % here mask the speed surface files 
+        % just for sessions 3 and 4
+        % used in the paper
+        metric = 'summary_distDifference'; % summary_distDifference or group.distDiff_transitions_groupVersion
+        atlas = 'FS_LR_164'; % 164 or 42
+        Tcut  = 1.7; % what T-stat cut-off to use
+        vararginoptions(varargin,{'metric','Tcut'});
+        switch metric
+            case 'summary_distDifference'
+                INCol = [3,4];
+                colName = {'sess3_distDifference','sess4_distDifference'};
+            case 'group.distDiff_transitions_groupVersion'
+                INCol = [13,15,17];
+                colName = {'all_sess3-4','trained_sess3-4','untrained_sess3-4'};
+        end
+        maskCol = [27,26,27]; % third session
+        for h=1:2
+            surfaceGroupDir = fullfile(wbDir,atlas);
+            inFile = fullfile(surfaceGroupDir,sprintf('s%s.%s.func.gii',hemI{h},metric));
+            maskFile = fullfile(surfaceGroupDir,sprintf('s%s.summary_dist.func.gii',hemI{h}));
+            M = gifti(maskFile);
+            IN = gifti(inFile);
+            
+            maskIdx = sum(M.cdata(:,maskCol)>Tcut,2)>0;
+            for i=1:length(INCol);
+                data(:,i) = IN.cdata(:,INCol(i)).*maskIdx;
+                column_name{i} = colName{i};
+            end
+            outfile         = fullfile(surfaceGroupDir,sprintf('s%s.%s_masked.func.gii',hemI{h},metric));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            save(G, outfile);
+        end
+        
         
     case 'BETA_get'                                                     % STEP 5.6   :  Harvest betas from rois (raw, univ, multiv prewhit)    
-        sessN = 1;
-        sn  = [23:25];    
+        sessN = 1:4;
+        sn  = [5:9,11:31];    
         roi = 1:16; 
-        roiDefine = 'all'; % determine all regions from region file R
-        parcelType = 'Brodmann'; % 162tessels, Brodmann, cortex_buckner, BG-striatum, thalamus
+        roiDefine = 'all'; % determine all regions from region file R, or 'tesselSelect' - based on distance mask
+        parcelType = 'tesselsWB_162'; % 162tessels, Brodmann, cortex_buckner, BG-striatum, thalamus, tesselsWB_162, tesselWB_362
         vararginoptions(varargin,{'sn','sessN','roi','parcelType','roiDefine'});
        
-        for ss=sessN            
+        if strcmp(parcelType,'Yokoi_clusters')
+            regType = [1 2 3 4 5 6 7 8 9 10 1 2 3 6 8 9 10];
+            regSide = [1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2];
+        end
+        idxRoi=0;
+        for ss=sessN
             % harvest
             for s=sn % for each subj
                 T=[];
                 fprintf('\nSubject: %d\n',s) % output to user
-                % load files
-                load(fullfile(glmSessDir{ss}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
-                load(fullfile(regDir,[subj_name{s} sprintf('_%s_regions.mat',parcelType)]));  % load subject's region parcellation (R)
-                
-                if strcmp(roiDefine,'all')==1
-                    roi=1:size(R,2);
-                end
-                cd (fullfile(glmSessDir{ss},subj_name{s})); % maybe change back when remove glm
-                
-                P=SPM.Vbeta(SPM.xX.iC);
-                
-                % Add a few extra images
-                %----task against rest
-                O{1}=sprintf('psc_sess%d_TrainSeq.nii',ss); %psc trained
-                O{2}=sprintf('psc_sess%d_UntrainSeq.nii',ss); %psc untrained
-                %O{3}=sprintf('%s_sess%d_dist_trained.nii',subj_name{s},sessN); %dist trained
-                %O{4}=sprintf('%s_sess%d_dist_untrained.nii',subj_name{s},sessN); %dist untrained
-                %O{5}=sprintf('%s_sess%d_dist_cross.nii',subj_name{s},sessN); %dist cross
-                oP=spm_vol(char(O));
-                
-                V = SPM.xY.VY;
-                
-                for r = roi % for each region
-                    % get raw data for voxels in region
-                    % determine if any voxels for that parcel
-                    if size(R{r}.data,1)==0 % no voxels
-                        % make data into NaN
-                        S.betaW                   = {NaN};
-                        S.betaUW                  = {NaN};
-                        S.betaRAW                 = {NaN};
-                        S.resMS                   = {NaN};
-                        S.psc_train   = NaN;
-                        S.psc_untrain = NaN;
-                    else
-                        Y = region_getdata(V,R{r});  % Data Y is N x P
-                        data = region_getdata(oP,R{r}); % from added images
-                        % exclude any missing data in voxels
-                        idx = find(Y(1,:));
-                        % estimate region betas
-                        [betaW,resMS,SW_raw,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','overall');
-                        S.betaW                   = {betaW};                             % multivariate pw
-                        S.betaUW                  = {bsxfun(@rdivide,beta,sqrt(resMS))}; % univariate pw
-                        S.betaRAW                 = {beta};
-                        S.resMS                   = {resMS};
-                        % info from maps for surface
-                        S.psc_train   = {data(1,idx)};
-                        S.psc_untrain = {data(2,idx)};
-                    end
+                % here first check if the beta file already exists - run
+                % only if not
+                %if exist(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'file')
+                %    fprintf('Beta file already exists....skipping.\n');
+                %else
+                    fprintf('Starting to extract betas...\n');
+                    tElapsed=tic;
+                    % load files
+                    load(fullfile(glmSessDir{ss}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
+                    load(fullfile(regDir,[subj_name{s} sprintf('_%s_regions.mat',parcelType)]));  % load subject's region parcellation (R)
                     
-                    % voxel position
-                    S.volcoord = {R{r}.data'};
-                    S.SN                      = s;
-                    S.region                  = r;
-                    if r<(numel(roi)/2)+1
-                        S.regSide = 1;
-                        S.regType = S.region;
-                    else
-                        S.regSide = 2;
-                        S.regType = S.region-(numel(roi)/2);
+                    if idxRoi==0 % determine for first subject
+                        if strcmp(roiDefine,'all')
+                            roi=1:size(R,2);
+                            nReg_hemi = size(R,2)/2;
+                        elseif strcmp(roiDefine,'tesselSelect')
+                            nReg_hemi = size(R,2)/2;
+                            roi = [];
+                            for h=1:2
+                                tessels{h}=sml_connect('TESSEL:select','hemi',h,'nTessel',642);
+                                roi = [roi nReg_hemi*(h-1)+tessels{h}];
+                            end
+                        end
+                        idxRoi = 1;
                     end
-                    if any(strcmp(parcelType,{'BG-striatum','thalamus'}))
-                        S.regName = {R{r}.name};
+                    % this used to ensure the tessel / region allocation is
+                    % correct
+%                     for i=roi
+%                         if i<nReg_hemi
+%                             hemT = tessels{1};
+%                             regI = i;
+%                         else
+%                             hemT = tessels{2};
+%                             regI = i-nReg_hemi;
+%                         end
+%                         t = R{i}.name;       
+%                         idx=t(10:end)==num2str(regI);
+%                         if sum(idx==0)>0
+%                             keyboard;
+%                         end
+%                     end
+                    cd (fullfile(glmSessDir{ss},subj_name{s})); % maybe change back when remove glm           
+                    P=SPM.Vbeta(SPM.xX.iC);
+                    % Add a few extra images
+                    %----task against rest
+                    O{1}=sprintf('psc_sess%d_TrainSeq.nii',ss); %psc trained
+                    O{2}=sprintf('psc_sess%d_UntrainSeq.nii',ss); %psc untrained
+                   % if any(strcmp(parcelType,{'tesselsWB_1062','tesselsWB_642'}))
+                   %     O{3}=sprintf('%s_sess%d_dist.nii',subj_name{s},ss); %dist trained
+                   %     O{4}=sprintf('%s_sess%d_dist_trained.nii',subj_name{s},ss); %dist trained
+                   %     O{5}=sprintf('%s_sess%d_dist_untrained.nii',subj_name{s},ss); %dist untrained
+                   %     O{6}=sprintf('%s_sess%d_dist_cross.nii',subj_name{s},ss); %dist cross
+                   % end
+                    oP=spm_vol(char(O));
+                    
+                    V = SPM.xY.VY;
+                    
+                    for r = roi % for each region
+                        % get raw data for voxels in region
+                        % determine if any voxels for that parcel
+                        idx=[];
+                        if size(R{r}.data,1)==0 % no voxels
+                            % make data into NaN
+                            S.betaW             = {NaN};
+                            S.betaUW            = {NaN};
+                            S.betaRAW           = {NaN};
+                            S.resMS             = {NaN};
+                            S.psc_train         = NaN;
+                            S.psc_untrain       = NaN;
+                           % if any(strcmp(parcelType,{'tesselsWB_1062','tesselsWB_642'}))
+                           %     S.dist_all      = NaN;
+                           %     S.dist_train    = NaN;
+                           %     S.dist_untrain  = NaN;
+                           %     S.dist_cross    = NaN;
+                           % end
+                        else
+                            if strcmp(parcelType,'BG-striatum')
+                                for ss1=1:4
+                                    load(fullfile(glmSessDir{ss1}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
+                                    V_test = SPM.xY.VY;
+                                    dataTest{ss1} = region_getdata(V_test,R{r});
+                                end
+                                i1 = find(dataTest{1}(1,:)); i2 = find(dataTest{2}(1,:)); i3 = find(dataTest{3}(1,:)); i4 = find(dataTest{4}(1,:));  
+                                iA = intersect(i1,i2); iA = intersect(iA,i3); idx = intersect(iA,i4);
+                            end
+                            
+                            Y = region_getdata(V,R{r});  % Data Y is N x P
+                            data = region_getdata(oP,R{r}); % from added images
+                            % exclude any missing data in voxels
+                            idx = find(Y(1,:));
+                            % estimate region betas
+                            [betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','overall');
+                            S.betaW                   = {betaW};                             % multivariate pw
+                            S.betaUW                  = {bsxfun(@rdivide,beta,sqrt(resMS))}; % univariate pw
+                            S.betaRAW                 = {beta};
+                            S.resMS                   = {resMS};
+                            % info from maps for surface
+                            S.psc_train         = {data(1,idx)};
+                            S.psc_untrain       = {data(2,idx)};
+                       %     if any(strcmp(parcelType,{'tesselsWB_1062','tesselsWB_642'}))
+                       %         S.dist_all      = {data(3,idx)};
+                       %         S.dist_train    = {data(4,idx)};
+                       %         S.dist_untrain  = {data(5,idx)};
+                       %         S.dist_cross    = {data(6,idx)};
+                       %     end
+                        end
+                        % voxel position
+                        S.volcoord = {R{r}.data(idx,:)'};
+                        S.SN = s;
+                        S.region = r;
+                        %if r<(numel(roi)/2)+1
+                        if r<nReg_hemi
+                            S.regSide = 1;
+                            S.regType = S.region;
+                        else
+                            S.regSide = 2;
+                            %S.regType = S.region-(numel(roi)/2);
+                            S.regType = S.region-nReg_hemi;
+                        end
+                        if any(strcmp(parcelType,{'BG-striatum','thalamus'}))
+                            S.regName = {R{r}.name};
+                        elseif strcmp(parcelType,{'Yokoi_clusters'})
+                            S.regSide = regSide(r);
+                            S.regType = regType(r); 
+                        end
+                        T = addstruct(T,S);
+                        fprintf('%d.',r)
+                        %fprintf('elapsed %d\n',telapsed);
                     end
-                    T = addstruct(T,S);
-                    fprintf('%d.',r)
-                    %fprintf('elapsed %d\n',telapsed);
-                end
-                dircheck(fullfile(betaDir,subj_name{s}));
-                save(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'-struct','T');
-                fprintf('\nDone beta extraction for sess%d-%s\n',ss,subj_name{s});
-            end            
+                    dircheck(fullfile(betaDir,subj_name{s}));
+                    save(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'-struct','T');
+                    fprintf('\nDone beta extraction for sess%d-%s\n',ss,subj_name{s}); toc(tElapsed);
+             %   end
+            end
         end
     case 'BETA_combineGroup'
         % combine individual subject beta structures into the whole
         % structure
-        sessN=[1:4];
-        sn=[4:9,11:31];
+        sessN=1:4;
+        sn=[5:9,11:31];
         type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
-        parcelType='Brodmann';
+        parcelType='Brodmann'; % 162tessels, Brodmann, cortex_buckner, BG-striatum, thalamus, tesselsWB_162, tesselsWB_362
         vararginoptions(varargin,{'sn','sessN','roi','betaChoice','type','parcelType'});
         
         for ss=sessN
@@ -1161,27 +1869,44 @@ switch(what)
                     T=[];
                 case 'add'
                     T=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
-                    T=getrow(T,T.SN~=29 & T.SN~=31);
-            end   
+                    T=getrow(T,T.SN<29);
+            end
             fprintf('subjects added for sess-%d:\n',ss);
             for s=sn
                 S=load(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d',parcelType,subj_name{s},ss)));
-              T=addstruct(T,S);
-
+                T=addstruct(T,S);
+                
                 fprintf('%d.',s);
             end
-            save(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)),'-struct','T');
+            save(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)),'-struct','T','-v7.3');
+        end
+    case 'BETA_check'
+        %check if searchlights exist
+        sn = [5:9,11:31];
+        sessN = 4;
+        parcelType = 'tesselsWB_362';
+        vararginoptions(varargin,{'sn','sessN','parcelType'});
+        for ss=sessN
+            idx=0;
+            for s=sn
+                % go to subject's glm directory
+                 if exist(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d.mat',parcelType,subj_name{s},ss)),'file')
+                    fprintf('Beta file: %s sess%d already exists!\n',subj_name{s},ss);
+                else
+                    fprintf('Beta file MISSING: %s sess%d!!!!\n',subj_name{s},ss);
+                    idx=idx+1;
+                end
+            end
+            fprintf('\nMissing %d beta files for sess-%d!!\n',idx,ss);
         end
     case 'BETA_splitHalf'
           % crossvalidated version - separately for even and odd runs
-
-        sn=[4:9,11:31];
-        sessN=[1:4];
-        parcelType='162tessels'; % Brodmann or 162tessels
+        sn=[5:9,11:31];
+        sessN=1:4;
+        parcelType='162tessels'; % Brodmann or 162tessels, tesselsWB_162, tesselsWB_362
         betaChoice='multi';
         vararginoptions(varargin,{'sn','sessN','parcelType','betaChoice'});
        
-        TT=[];
         nRun  = 8;
         nCond = 12;
         pVec  = kron([1:nRun]',ones(nCond,1));
@@ -1208,9 +1933,26 @@ switch(what)
             regSide(roi>158)=2;
             regType = roi;
             regType(regSide==2)=regType(regSide==2)-158;
+        elseif strcmp(parcelType,'tesselsWB_162') || strcmp(parcelType,'tesselsWB_362')
+            roi = sml1_imana_dist('CLUSTER_choose','sessN',sessN,'parcelType',parcelType)';
+            T1=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,1)));
+            T1 = getrow(T1,T1.SN==5);
+            % choose only clusters where group dist >0
+            regSide = T1.regSide(roi);
+            regType = T1.regType(roi);
+            %regSide = ones(size(roi));
+           % regSide(roi>158)=2;
+            %regType = roi;
+            %regType(regSide==2)=regType(regSide==2)-158;
+        elseif strcmp(parcelType,'tesselsWB_642')
+            BB=load(fullfile(betaDir,'s05','betas_tesselsWB_642_s05_sess1')); % used for 642
+            roi = BB.region;
+            regSide = BB.regSide;
+            regType = BB.regType;
         end
 
         for ss=sessN
+            TT = [];
             fprintf('\n\nSession %d\n',ss);
             V=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d',parcelType,ss)));
             for s=sn
@@ -1233,8 +1975,8 @@ switch(what)
                         T.partB_train     = ones(1,6*5/2)*NaN;
                         T.partB_untrain   = ones(1,6*5/2)*NaN;
                         T.partB_all       = ones(1,12*11/2)*NaN;
-                        T.G_partA         = ones(1,6*5/2)*NaN;
-                        T.G_partB         = ones(1,6*5/2)*NaN;
+                        T.G_partA         = ones(1,12*12)*NaN;
+                        T.G_partB         = ones(1,12*12)*NaN;
                     else
                         distA = rsa_squareRDM(rsa.distanceLDC(beta(idxA,:),pVec(idxA),cVec));
                         distB = rsa_squareRDM(rsa.distanceLDC(beta(idxB,:),pVec(idxB),cVec));
@@ -1244,8 +1986,8 @@ switch(what)
                         T.partB_train     = rsa_vectorizeRDM(distB(1:6,1:6));
                         T.partB_untrain   = rsa_vectorizeRDM(distB(7:12,7:12));
                         T.partB_all       = rsa_vectorizeRDM(distB);
-                        T.G_partA         = pcm_estGCrossval(beta(idxA,:),pVec(idxA),cVec);      
-                        T.G_partB         = pcm_estGCrossval(beta(idxB,:),pVec(idxB),cVec);
+                        T.G_partA         = rsa_vectorizeIPMfull(pcm_estGCrossval(beta(idxA,:),pVec(idxA),cVec));      
+                        T.G_partB         = rsa_vectorizeIPMfull(pcm_estGCrossval(beta(idxB,:),pVec(idxB),cVec));
                     end   
                     T.sn = s;
                     T.sessN = ss;
@@ -1256,9 +1998,19 @@ switch(what)
                     TT=addstruct(TT,T);
                 end
             end
+            save(fullfile(betaDir,'group',sprintf('betas_partition_%s_%sPW_sess%d',parcelType,betaChoice,ss)),'-struct','TT');
         end
-        save(fullfile(betaDir,'group',sprintf('betas_partition_%sPW_%s',betaChoice,parcelType)),'-struct','TT');
-
+    case 'BETA_splithalf_combine_crossSess'
+        % here combine beta structures across sessions
+        sessN = 1:4;
+        parcelType = 'tesselsWB_162';
+        TT = [];
+        for ss=sessN
+            T = load(fullfile(betaDir,'group',sprintf('betas_partition_%s_sess%d.mat',parcelType,ss)));
+            keyboard;
+            TT = addstruct(TT,T);
+        end
+        save(fullfile(betaDir,'group',sprintf('betas_partition_%s.mat',parcelType)));
     case 'BETA_combine_splitHalf'
         % combine different split-half beta structures
         % Brodmann, BG-striatum, thalamus
@@ -1304,7 +2056,7 @@ switch(what)
                 % get raw data for voxels in region
                 Y = region_getdata(V,R{r});  % Data Y is N x P 
                 % estimate region betas
-                [betaW,resMS,SW_raw,beta] = rsa.spm.noiseNormalizeBeta(Y,SPM,'normmode','overall');
+                open s
                 S.betaW                   = {betaW};                             % multivariate pw
                 S.betaUW                  = {bsxfun(@rdivide,beta,sqrt(resMS))}; % univariate pw 
                 S.betaRAW                 = {beta};
@@ -1319,15 +2071,15 @@ switch(what)
         save(fullfile(regDir,sprintf('betas_LOC_sess%d.mat',sessN)),'-struct','T'); 
         fprintf('\n');  
     case 'BETA_stats'                                                        % STEP 5.8   :  Calculate stats/distances on activity patterns - train/untrain seq
-        sessN = [1:4];
-        sn=[4:9,11:31];
-        roi = [1:16];
+        sessN = 1:4;
+        sn=[5:9,11:31];
+        roi = 1:16;
         roiDefine = 'all'; % determine from region file
         betaChoice = 'multi'; % uni, multi or raw
         checkG=0; % test across all regions / subjects 
         simulations=0;
         type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
-        parcelType = '162tessels'; % or Brodmann
+        parcelType = '162tessels'; % or Brodmann, tesselsWB_162
         vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine'});
         
         for ss=sessN;
@@ -1377,8 +2129,8 @@ switch(what)
                         Do.dist_all=NaN;
                         Do.eigTrain=ones(1,6)*NaN;
                         Do.eigUntrain=ones(1,6)*NaN;
-                        Do.RDM_train=NaN;
-                        Do.RDM_untrain=NaN;
+                        Do.RDM_train=ones(1,15)*NaN;
+                        Do.RDM_untrain=ones(1,15)*NaN;
                     else % run distance / RDM analyses
                         % crossval second moment matrix
                         [G,Sig]     = pcm_estGCrossval(betaW(1:(12*num_run),:),D.run,D.seqNumb);
@@ -1411,13 +2163,15 @@ switch(what)
                     % indexing fields
                     So.SN       = s;
                     So.region   = r;
-                    if r<(numel(roi)/2)+1
-                        So.regSide = 1;
-                        So.regType = So.region;
-                    else
-                        So.regSide = 2;
-                        So.regType = So.region-(numel(roi)/2);
-                    end
+                    So.regSide  = S.regSide;
+                    So.regType  = S.regType;
+%                     if r<(numel(roi)/2)+1
+%                         So.regSide = 1;
+%                         So.regType = So.region;
+%                     else
+%                         So.regSide = 2;
+%                         So.regType = So.region-(numel(roi)/2);
+%                     end
                     % data structure
                     To          = addstruct(To,So); % indexing fields, other images
                     To          = addstruct(To,Do); % distances
@@ -1433,7 +2187,7 @@ switch(what)
             % % save - stats data and simulations
             save(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)),'-struct','To');
             if simulations==1
-                save(fullfile(regDir,sprintf('stats_%s_%sPW_SIMULATIONS_sess%d.mat',regType,betaChoice,ss)),'-struct','Po');
+                save(fullfile(regDir,sprintf('stats_%s_%sPW_SIMULATIONS_sess%d.mat',parcelType,betaChoice,ss)),'-struct','Po');
             end
             fprintf('\nDone.\n')
         end
@@ -1482,41 +2236,43 @@ switch(what)
         case 'ROI_PLOT_simulations'
             sessN=1;
             betaChoice='multi';
+            parcelType = 'Brodmann';
             vararginoptions(varargin,{'sessN','roi','betaChoice'});
             
             % load data and simulations
-            D = load(fullfile(regDir,sprintf('stats_%sPW_sess%d.mat',betaChoice,sessN)));
-            S = load(fullfile(regDir,sprintf('stats_%sPW_SIMULATIONS_sess%d.mat',betaChoice,sessN)));
+            D = load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,sessN)));
+            S = load(fullfile(regDir,sprintf('stats_%s_%sPW_SIMULATIONS_sess%d.mat',parcelType,betaChoice,sessN)));
             
             reg_indx=unique(D.region);
             
             for r=1:length(reg_indx)
-                figure(1);
-                subplot(1,length(reg_indx),r);
-                histplot(S.dist_cross,'subset',S.region==r); % simulations
-                drawline(mean(D.dist_cross(D.region==r)),'dir','vert','color',[1 0 0]);
-                title(sprintf('%s',regname{r}));
-                if r==1
+              figure
+                %  figure(1);
+              %  subplot(1,length(reg_indx),r);
+                histplot(ssqrt(S.dist_cross),'subset',S.region==r); % simulations
+                drawline(mean(ssqrt(D.dist_cross(D.region==r))),'dir','vert','color',[1 0 0]);
+                title(sprintf('%s',regname_cortex{r}));
+               % if r==1
                     ylabel('Simulation count'); xlabel('Trained vs. Untrained dist');
-                end
+               % end
                 
-                figure(2);
-                subplot(1,length(reg_indx),r);
-                histplot(S.dist_train,'subset',S.region==r); % simulations
-                drawline(mean(D.dist_train(D.region==r)),'dir','vert','color',[1 0 0]);
-                title(sprintf('%s',regname{r}));
-                if r==1
-                    ylabel('Simulation count'); xlabel('Trained dist');
-                end
-                
-                figure(3);
-                subplot(1,length(reg_indx),r);
-                histplot(S.dist_untrain,'subset',S.region==r); % simulations
-                drawline(mean(D.dist_untrain(D.region==r)),'dir','vert','color',[1 0 0]);
-                title(sprintf('%s',regname{r}));
-                if r==1
-                    ylabel('Simulation count'); xlabel('Untrained dist');
-                end
+%                 figure(2);
+%                 subplot(1,length(reg_indx),r);
+%                 histplot(S.dist_train,'subset',S.region==r); % simulations
+%                 drawline(mean(D.dist_train(D.region==r)),'dir','vert','color',[1 0 0]);
+%                 title(sprintf('%s',regname{r}));
+%                 if r==1
+%                     ylabel('Simulation count'); xlabel('Trained dist');
+%                 end
+%                 
+%                 figure(3);
+%                 subplot(1,length(reg_indx),r);
+%                 histplot(S.dist_untrain,'subset',S.region==r); % simulations
+%                 drawline(mean(D.dist_untrain(D.region==r)),'dir','vert','color',[1 0 0]);
+%                 title(sprintf('%s',regname{r}));
+%                 if r==1
+%                     ylabel('Simulation count'); xlabel('Untrained dist');
+%                 end
                 
             end
             keyboard;            
@@ -1778,6 +2534,193 @@ switch(what)
                 caret_save(fullfile(caretDir,'fsaverage_sym',hemName{h},sprintf('%s.Dist_%s_sessTR%d-%d.RGB_paint',hem{h},regType,ss,ss+1)),S);
             end
         end
+        
+    case 'SURF_wb:mapTessels_mahalanobis'
+        sessN = 1:4;
+        nNodes = 162;
+        betaChoice = 'multi';
+        vararginoptions(varargin,{'sessN','nNodes','betaChoice'});
+        
+        for h=1:2 % hemisphere
+            for ss=sessN
+                T = load(fullfile(betaDir,'group',sprintf('stats_tesselsWB_%d_%sPW_sess%d.mat',nNodes,betaChoice,ss)));
+                G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nNodes,hemI{h})));
+                nReg = numel(unique(G.cdata))-1; % exclude 0 - medial wall
+                for r=1:nReg
+                    t = getrow(T,T.regType==r&T.regSide==h);
+                    idx = find(G.cdata(:,1)==r);
+                    if sum(isnan(t.dist_train))/length(t.dist_train)>0.7% ensure more than 70% have data
+                        data(idx,(ss-1)*2+1) = NaN;
+                        data(idx,(ss-1)*2+2) = NaN;
+                    else
+                        data(idx,(ss-1)*2+1) = nanmean(t.dist_train);
+                        data(idx,(ss-1)*2+2) = nanmean(t.dist_untrain);
+                    end
+                    column_name{(ss-1)*2+1} = sprintf('dist_trained-sess%d',ss);
+                    column_name{(ss-1)*2+2} = sprintf('dist_untrained-sess%d',ss);
+                end
+            end
+            outfile         = fullfile(wbDir,'FS_LR_164',sprintf('%s.tesselsWB_%d-dist.func.gii',hemI{h},nNodes));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            % filter out any crazy values (on the border of mask)
+            for c=1:size(G.cdata,2)
+                G.cdata(G.cdata(:,c)>5,c)=0;
+                G.cdata(G.cdata(:,c)<-5,c)=0;
+            end
+            save(G, outfile);
+            fprintf('Hemisphere: %d\n',h);
+        end
+    case 'SURF_wb:mapTessels_mahalanobis_searchlight'
+        sessN = 1:4;
+        nNodes = 162;
+        vararginoptions(varargin,{'sessN','nNodes','betaChoice'});
+        
+        for h=1:2 % hemisphere
+            for ss=sessN
+                T = load(fullfile(betaDir,'group',sprintf('betas_tesselsWB_%d_sess%d.mat',nNodes,ss)));
+                G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nNodes,hemI{h})));
+                nReg = numel(unique(G.cdata))-1; % exclude 0 - medial wall
+                for r=1:nReg
+                    t = getrow(T,T.regType==r&T.regSide==h);
+                    dist_T = zeros(size(t.dist_train,1),1);
+                    dist_UT = dist_T;
+                    for s=1:size(t.dist_train,1)
+                        if isnan(t.dist_train{s})
+                            dist_T(s) = NaN;
+                            dist_UT(s) = NaN;
+                        else
+                            dist_T(s) = nanmean(t.dist_train{s});
+                            dist_UT(s) = nanmean(t.dist_untrain{s});
+                        end
+                    end
+                    idx = find(G.cdata(:,1)==r);
+                    if sum(isnan(dist_T))/length(dist_T)>0.7% ensure more than 70% have data
+                        data(idx,(ss-1)*2+1) = NaN;
+                        data(idx,(ss-1)*2+2) = NaN;
+                    else
+                        data(idx,(ss-1)*2+1) = nanmean(dist_T);
+                        data(idx,(ss-1)*2+2) = nanmean(dist_UT);
+                    end
+                    column_name{(ss-1)*2+1} = sprintf('dist_trained-sess%d',ss);
+                    column_name{(ss-1)*2+2} = sprintf('dist_untrained-sess%d',ss);
+                    fprintf('%d.',r);
+                end
+            end
+            outfile         = fullfile(wbDir,'FS_LR_164',sprintf('%s.tesselsWB_%d-search_dist.func.gii',hemI{h},nNodes));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            % filter out any crazy values (on the border of mask)
+            for c=1:size(G.cdata,2)
+                G.cdata(G.cdata(:,c)>5,c)=0;
+                G.cdata(G.cdata(:,c)<-5,c)=0;
+            end
+            save(G, outfile);
+            fprintf('Hemisphere: %d\n',h);
+        end
+    case 'SURF_wb:mapTessels_mahalanobis_crossSess'
+        sessTr = 1:3;
+        nNodes = 162;
+        betaChoice = 'multi';
+        vararginoptions(varargin,{'sessTr','nNodes','betaChoice'});
+        
+        for h=1:2 % hemisphere
+            for ss=sessTr
+                T1 = load(fullfile(betaDir,'group',sprintf('stats_tesselsWB_%d_%sPW_sess%d.mat',nNodes,betaChoice,ss)));
+                T2 = load(fullfile(betaDir,'group',sprintf('stats_tesselsWB_%d_%sPW_sess%d.mat',nNodes,betaChoice,ss+1)));
+                G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nNodes,hemI{h})));
+                nReg = numel(unique(G.cdata))-1; % exclude 0 - medial wall
+                for r=1:nReg
+                    t1 = getrow(T1,T1.regType==r&T1.regSide==h);
+                    t2 = getrow(T2,T2.regType==r&T2.regSide==h);
+                    idx = find(G.cdata(:,1)==r);
+                    if sum(isnan(t1.dist_train))/length(t1.dist_train)>0.7% ensure more than 70% have data
+                        data(idx,(ss-1)*2+1) = NaN;
+                        data(idx,(ss-1)*2+2) = NaN;
+                    else
+                        data(idx,(ss-1)*2+1) = nanmean(t2.dist_train)-nanmean(t1.dist_train);
+                        data(idx,(ss-1)*2+2) = nanmean(t2.dist_untrain)-nanmean(t1.dist_untrain);
+                    end
+                    column_name{(ss-1)*2+1} = sprintf('dist_trained-sessTr_%d-%d',ss,ss+1);
+                    column_name{(ss-1)*2+2} = sprintf('dist_untrained-sessTr_%d-%d',ss,ss+1);
+                end
+            end
+            outfile         = fullfile(wbDir,'FS_LR_164',sprintf('%s.tesselsWB_%d_sessTrans-dist.func.gii',hemI{h},nNodes));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            % filter out any crazy values (on the border of mask)
+            for c=1:size(G.cdata,2)
+                G.cdata(G.cdata(:,c)>5,c)=0;
+                G.cdata(G.cdata(:,c)<-5,c)=0;
+            end
+            save(G, outfile);
+            fprintf('Hemisphere: %d\n',h);
+        end
+    case 'SURF_wb:mapTessels_mahalanobis_difference'
+        % trained - untrained
+        sessN = 1:4;
+        nNodes = 162;
+        betaChoice = 'multi';
+        vararginoptions(varargin,{'sessN','nNodes','betaChoice'});
+        
+        for h=1:2 % hemisphere
+            for ss=sessN
+                T = load(fullfile(betaDir,'group',sprintf('stats_tesselsWB_%d_%sPW_sess%d.mat',nNodes,betaChoice,ss)));
+                G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nNodes,hemI{h})));
+                nReg = numel(unique(G.cdata))-1; % exclude 0 - medial wall
+                for r=1:nReg
+                    t = getrow(T,T.regType==r&T.regSide==h);
+                    idx = G.cdata(:,1)==r;
+                    if sum(isnan(t.dist_train))/length(t.dist_train)>0.7% ensure more than 70% have data
+                        data(idx,ss) = NaN;
+                    else
+                        data(idx,ss) = nanmean(t.dist_train)-nanmean(t.dist_untrain);
+                    end
+                    column_name{ss} = sprintf('distDiff-sess%d',ss);
+                end
+            end
+            outfile         = fullfile(wbDir,'FS_LR_164',sprintf('%s.tesselsWB_%d-distDifference.func.gii',hemI{h},nNodes));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            % filter out any crazy values (on the border of mask)
+            for c=1:size(G.cdata,2)
+                G.cdata(G.cdata(:,c)>5,c)=0;
+                G.cdata(G.cdata(:,c)<-5,c)=0;
+            end
+            save(G, outfile);
+            fprintf('Hemisphere: %d\n',h);
+        end
+    case 'SURF_wb:mapTessels_cosine'
+        sessN = 1:4;
+        nNodes = 162;
+        vararginoptions(varargin,{'sessN','nNodes'});
+        
+        for h=1:2 % hemisphere
+            for ss=sessN
+                T = load(fullfile(distPscDir,sprintf('corrDist_tesselsWB_%d_ROI.mat',nNodes)));
+                G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nNodes,hemI{h})));
+                nReg = numel(unique(G.cdata))-1; % exclude 0 - medial wall
+                for r=1:nReg
+                    t = getrow(T,T.regType==r&T.regSide==h&T.sessN==ss);
+                    idx = find(G.cdata(:,1)==r);
+                    if sum(isnan(t.corrDist))/length(t.corrDist)>0.7% ensure more than 70% have data
+                        data(idx,(ss-1)*2+1) = NaN;
+                        data(idx,(ss-1)*2+2) = NaN;
+                    else
+                        data(idx,(ss-1)*2+1) = nanmean(t.corrDist(t.seqType==1))*100;
+                        data(idx,(ss-1)*2+2) = nanmean(t.corrDist(t.seqType==2))*100;
+                    end
+                    column_name{(ss-1)*2+1} = sprintf('dist_corr_trained-sess%d',ss);
+                    column_name{(ss-1)*2+2} = sprintf('dist_corr_untrained-sess%d',ss);
+                end
+            end
+            outfile         = fullfile(wbDir,'FS_LR_164',sprintf('%s.tesselsWB_%d-corr-dist.func.gii',hemI{h},nNodes));
+            G               = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+            % filter out any crazy values (on the border of mask)
+            for c=1:size(G.cdata,2)
+                G.cdata(G.cdata(:,c)>5,c)=0;
+                G.cdata(G.cdata(:,c)<-5,c)=0;
+            end
+            save(G, outfile);
+            fprintf('Hemisphere: %d\n',h);
+        end
+        
     case 'Tessel_selection' % DEPRECIATED
         sn=[5,7,8,9,11,13,14,15,16];
         sessN=[1:4];
@@ -1917,6 +2860,53 @@ switch(what)
             end
             
         end
+    case 'PLOT_eig_dim2'
+        roi = 1:8;
+        sessN=1:4;
+        vararginoptions(varargin,{'roi','sessN','hemi'});
+        seqType={'trained','untrained'};
+        
+        T=load(fullfile(distPscDir,'eigenvalues.mat'));
+        T.numDim=sum(T.eig(:,1:5)>0,2); % number of non-negative eigenvalues
+
+        for r=roi
+            style.use('SeqShade_small');
+            figure
+            for ss=sessN
+                subplot(3,5,ss)
+               % histogram(T.numDim(T.roi==r & T.sessN==ss&T.seqType==2));
+               % hold on; histogram(T.numDim(T.roi==r & T.sessN==ss&T.seqType==1));
+                plt.hist(T.numDim,'subset',T.roi==r & T.sessN==ss,'split',T.seqType,'leg',seqType);
+                title(sprintf('%s - sess%d',regname_cortex{r},ss)); 
+                if ss==1
+                    ylabel('N'); xlabel('dimension');
+                else
+                    ylabel('');
+                end
+            end
+            style.use('Seq');
+            for d=1:5 % per dimension
+                subplot(3,5,5+d)
+                plt.line([T.sessN>3 T.sessN],T.eig(:,d),'subset',T.roi==r & T.numDim>=d,'split',T.seqType,'leg',seqType);
+                title(sprintf('dimension-%d',d));
+                if d==1
+                    ylabel('variance explained'); xlabel('session');
+                else
+                    ylabel('');
+                end
+            end
+            subplot(3,5,11)
+            plt.line([T.sessN>3 T.sessN],sum(T.eig(:,1:T.numDim),2),'subset',T.roi==r,'split',T.seqType);
+            title('sum of all dimensions');
+            ylabel('variance explained'); xlabel('session');
+            style.use('Sess');
+            subplot(3,5,12)
+            plt.hist(T.numDim,'subset',T.roi==r & T.seqType==1,'split',T.sessN,'leg',{'1','2','3','4'}); title('Trained'); xlabel('dimension');
+            subplot(3,5,13)
+            plt.hist(T.numDim,'subset',T.roi==r & T.seqType==2,'split',T.sessN,'leg',{'1','2','3','4'}); title('Control'); xlabel('dimension');
+        end
+        
+        
     case 'STATS_eig_dimensions'
         roi=[1:8];
         sessN=[1:4];
@@ -2093,6 +3083,10 @@ switch(what)
             end
         end
         
+        D1 = tapply(D,{'sessN','sn','seqType'},{'corr_ms','sum'});
+        figure
+        plt.line([D1.sessN>3 D1.sessN],D1.corr_ms,'split',D1.seqType);
+        
         figure
         for st=1:2
             subplot(1,2,st)
@@ -2143,12 +3137,16 @@ switch(what)
         D=load(fullfile(distPscDir,sprintf('Dimensionality_%s.mat',parcelType)));
      
         for r=roi
-            T=getrow(D,D.roi==r);
+            T=getrow(D,D.roi==r); 
             fprintf('%s - trained\n',regname{r});
-            anovaMixed(T.corr_ms_norm,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==1);
+            anovaMixed(T.corr_ms,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==1);
             fprintf('%s - untrained\n',regname{r});
-            anovaMixed(T.corr_ms_norm,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==2);
-            keyboard;
+            anovaMixed(T.corr_ms,T.sn,'within',[T.sessN T.indDim],{'session','dimension'},'subset',T.seqType==2);
+            T1 = tapply(T,{'sessN','sn','seqType'},{'corr_ms','sum'});
+            T2 = tapply(T,{'sessN','sn','seqType'},{'corr_ms','sum'},'subset',T.indDim~=1);
+            anovaMixed(T1.corr_ms,T1.sn,'within',[T1.sessN,T1.seqType],{'session','seqType'},'subset',T1.sessN~=4);
+            anovaMixed(T2.corr_ms,T2.sn,'within',[T2.sessN,T2.seqType],{'session','seqType'},'subset',T2.sessN~=4);
+            ttestDirect(T2.corr_ms,[T2.seqType T2.sn],2,'paired','split',T2.sessN);
         end
             
     case 'ROI_psc_surfdist'
@@ -2415,8 +3413,8 @@ switch(what)
         xlabel('ROI');
         
     case 'STATS_dist'
-        roi=[1:8];
-        sessN=[1:4];
+        roi=1:8;
+        sessN=1:4;
         parcelType='Brodmann';
         hemi=1;
         vararginoptions(varargin,{'roi','sessN','parcelType','hemi'});
@@ -2477,7 +3475,8 @@ switch(what)
         reg = 1:8;
         sn  = [5:9,11:31];
         sessN = 1:4;
-        parcelType='Brodmann';
+        parcelType='Brodmann'; %'tesselsWB_162'
+        regType = 'all';
         subtract_mean=0; % do NOT subtract mean - it distorts the pattern
         vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType'});
         SAll = [];
@@ -2485,54 +3484,121 @@ switch(what)
         
         for  ss = sessN
             D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
-            for roi = reg;
-                for h=1:2
+            for h=1:2
+                if strcmp(regType,'all')
+                    reg = unique(D.regType(D.regSide==h))';
+                end
+                for roi = reg;
+                    sprintf('Done regions:');
                     for s = sn;
                         SI = load(fullfile(glmSessDir{ss}, subj_name{s}, 'SPM_info.mat'));   % load subject's trial structure
                         t   = getrow(D,D.regType==roi & D.regSide==h & D.SN==s);
-                        data = t.betaW{1}(1:size(SI.SN,1),:);
-                        numRuns    = 1:numruns_task_sess;
-                        numConds   = num_seq;
-                        conds   = repmat([numConds],1,length(numRuns))';
-                        runNums = kron([numRuns],ones(1,length(numConds)))';
-                        if subtract_mean
-                            for r=numRuns
-                                data(runNums==r,:) = bsxfun(@minus,data(runNums==r,:),mean(data(runNums==r,:)));
+                        if size(t.betaW{1},2)~=1 % only for NaNs
+                            data = t.betaW{1}(1:size(SI.SN,1),:);
+                            numRuns    = 1:numruns_task_sess;
+                            numConds   = num_seq;
+                            conds   = repmat(numConds,1,length(numRuns))';
+                            runNums = kron(numRuns,ones(1,length(numConds)))';
+                            if subtract_mean
+                                for r=numRuns
+                                    data(runNums==r,:) = bsxfun(@minus,data(runNums==r,:),mean(data(runNums==r,:)));
+                                end
+                            else
+                                data=data;
                             end
-                        else
-                            data=data;
+                            % crossval second moment matrix
+                            [G,~]     = pcm_estGCrossval(data,SI.run,SI.seqNumb);
+                            C=corr_crossval(G,'reg','minvalue');
+                            C=rsa_squareRDM(C);
+                            
+                            % average trained dist
+                            S.corrDist(1,:) = sum(sum(triu(C(1:6,1:6))))/(6*5/2);
+                            % average untrained dist
+                            S.corrDist(2,:) = sum(sum(triu(C(7:12,7:12))))/(6*5/2);
+                            S.seqType   = [1;2]; % trained, untrained
+                            S.sessN     = [ss;ss];
+                            S.roi       = [roi;roi];
+                            S.regType   = repmat(t.regType,2,1);
+                            S.regSide   = repmat(t.regSide,2,1);
+                            S.sn        = [s;s];
+                            SAll=addstruct(SAll,S);
+                            
+                            ST.corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
+                            ST.sessN        = ss;
+                            ST.roi          = roi;
+                            ST.regType      = t.regType;
+                            ST.regSide      = t.regSide;
+                            ST.sn           = s;
+                            STAll=addstruct(STAll,ST);
                         end
-                        % crossval second moment matrix
-                        [G,~]     = pcm_estGCrossval(data,SI.run,SI.seqNumb);
-                        C=corr_crossval(G,'reg','minvalue');
-                        C=rsa_squareRDM(C);
-                        
-                        % average trained dist
-                        S.corrDist(1,:) = sum(sum(triu(C(1:6,1:6))))/(6*5/2);
-                        % average untrained dist
-                        S.corrDist(2,:) = sum(sum(triu(C(7:12,7:12))))/(6*5/2);
-                        S.seqType   = [1;2]; % trained, untrained
-                        S.sessN     = [ss;ss];
-                        S.roi       = [roi;roi];
-                        S.regType   = repmat(t.regType,2,1);
-                        S.regSide   = repmat(t.regSide,2,1);
-                        S.sn        = [s;s];
-                        SAll=addstruct(SAll,S);
-                        
-                        ST.corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
-                        ST.sessN        = ss;
-                        ST.roi          = roi;
-                        ST.regType      = t.regType;
-                        ST.regSide      = t.regSide;
-                        ST.sn           = s;
-                        STAll=addstruct(STAll,ST);
                     end
-                end 
+                    fprintf('%d.',roi);
+                end
             end
-            fprintf('Done sess%d.\n',ss);
+            fprintf('\nDone sess%d.\n',ss);
         end
         save(fullfile(distPscDir,sprintf('corrDist_%s_ROI.mat',parcelType)),'-struct','SAll');
         save(fullfile(distPscDir,sprintf('corrDist_seqType_%s_ROI.mat',parcelType)),'-struct','STAll');
+    case 'CALC_corrDist_wholeStriatum'
+            % combine caudate and pallidum
+        reg = 1:8;
+        sn  = [5:9,11:31];
+        sessN = 1:4;
+        parcelType='Brodmann'; %'tesselsWB_162'
+        subtract_mean=0; % do NOT subtract mean - it distorts the pattern
+        vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType'});
+        SAll = [];
+        STAll= [];
+        
+        for  ss = sessN
+            D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            for h=1:2
+                    sprintf('Done regions:');
+                    for s = sn;
+                        SI = load(fullfile(glmSessDir{ss}, subj_name{s}, 'SPM_info.mat'));   % load subject's trial structure
+                        t   = getrow(D,ismember(D.regType,1:2) & D.regSide==h & D.SN==s);
+                        if size(t.betaW{1},2)~=1 || size(t.betaW{2},2)~=1 % only for NaNs
+                            data = [t.betaW{1}(1:size(SI.SN,1),:) t.betaW{2}(1:size(SI.SN,1),:)];
+                            numRuns    = 1:numruns_task_sess;
+                            numConds   = num_seq;
+                            conds   = repmat(numConds,1,length(numRuns))';
+                            runNums = kron(numRuns,ones(1,length(numConds)))';
+                            if subtract_mean
+                                for r=numRuns
+                                    data(runNums==r,:) = bsxfun(@minus,data(runNums==r,:),mean(data(runNums==r,:)));
+                                end
+                            else
+                                data=data;
+                            end
+                            % crossval second moment matrix
+                            [G,~]     = pcm_estGCrossval(data,SI.run,SI.seqNumb);
+                            C=corr_crossval(G,'reg','minvalue');
+                            C=rsa_squareRDM(C);
+                            
+                            % average trained dist
+                            S.corrDist(1,:) = sum(sum(triu(C(1:6,1:6))))/(6*5/2);
+                            % average untrained dist
+                            S.corrDist(2,:) = sum(sum(triu(C(7:12,7:12))))/(6*5/2);
+                            S.seqType   = [1;2]; % trained, untrained
+                            S.sessN     = [ss;ss];
+                            S.regType   = [1;1];
+                            S.regSide   = [h;h];
+                            S.sn        = [s;s];
+                            SAll=addstruct(SAll,S);
+                            
+                            ST.corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
+                            ST.sessN        = ss;
+                            ST.regType      = 1;
+                            ST.regSide      = h;
+                            ST.sn           = s;
+                            STAll=addstruct(STAll,ST);
+                    end
+                end
+            end
+            fprintf('\nDone sess%d.\n',ss);
+        end
+        save(fullfile(distPscDir,sprintf('corrDist_wholeStriatum_ROI.mat')),'-struct','SAll');
+        save(fullfile(distPscDir,sprintf('corrDist_seqType_wholeStriatum_ROI.mat')),'-struct','STAll');
     case 'PLOT_corrDist'
         roi=[1:8];
         sessN=[1:4];
@@ -2720,9 +3786,10 @@ switch(what)
     case 'STATS_corrDist_seqType'
         roi=[1:8];
         sessN=[1:4];
+        parcelType = 'Brodmann';
         vararginoptions(varargin,{'roi','sessN'});
         
-        T=load(fullfile(distPscDir,'corrdist_seqType_ROI.mat'));
+        T=load(fullfile(distPscDir,sprintf('corrdist_seqType_%s_ROI.mat',parcelType)));
         % ANOVA - session x seqType - per region
         for r=roi
             fprintf('\n Distance seqType in %s \n',regname{r});
@@ -3191,7 +4258,342 @@ switch(what)
         end 
         plt.match('y');
         keyboard;
-    case 'PCM_constructModelFamily'  % this in use
+    case 'PCM_constructModelFamily_simple'
+        % here simpler version of model family:
+        % includes first finger, all fingers, seqType, sequences (T+U)
+        runEffect  = 'fixed';
+        beta_choice = 'mw';
+        algorithm = 'NR'; % minimize or NR
+        parcelType = 'Brodmann'; % Brodmann, 162tessels
+        regSelect = 'all'; % all or subset
+        sn = [5:9,11:31]; 
+        sessN = 1:4;
+        reg = 1:8;
+        hemi = 1;
+        naturalStats = 1;
+        
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi','regSelect','fingType','naturalStats'})
+        AllRegSess=[];
+        KKK=[]; GGG=[];
+        if strcmp(parcelType,'162tessels') % this to do for new tesselation
+            switch regSelect
+                case 'subset'
+                    reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+                case 'all'
+                    reg=sml1_imana_dist('CLUSTER_choose_all','sessN',sessN,'parcelType',parcelType)';
+            end
+        elseif strcmp(parcelType,'tesselsWB_642') % for 642 parcels
+            reg = sml1_imana_dist('CLUSTER_choose_all','sessN',sessN,'parcelType',parcelType)';
+            BB = load(fullfile(betaDir,'s05','betas_tesselsWB_642_s05_sess1')); % used for 642
+            BB = getrow(BB,ismember(BB.regSide,hemi) & ismember(BB.region,reg));
+            reg = BB.region';
+            regType = BB.regType';
+            regSide = BB.regSide';
+        elseif strcmp(parcelType,'Yokoi_clusters')
+            BB = load(fullfile(betaDir,'s05','betas_Yokoi_clusters_s05_sess1')); % 
+            reg = BB.region';
+            regType = BB.regType';
+            regSide = BB.regSide';
+        end    
+        for ss = sessN
+            AllReg=[];
+            KK=[]; GG=[];
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+%             if ~strcmp(parcelType,'162tessels')
+%                 reg=unique(B.region)';
+%                 regSide=(reg>size(reg,2)/2)+1;
+%                 regType=reg-((regSide-1)*size(reg,2)/2);
+%             else % only for 162tessels
+%                 regType=reg;
+%                 regType(regType>158)=regType(regType>158)-158;
+%                 regSide=ones(size(regType));
+%                 regSide(reg>158)=2;
+%             end
+            for r = 1:length(reg)
+                for p=1:length(sn)          
+                    glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn(p)});
+                    D=load(fullfile(glmDirSubj,'SPM_info.mat'));               
+                    switch (beta_choice)
+                        case 'uw'
+                            beta = B.betaUW{(B.sn==sn(p)&B.region==reg(r))}';
+                        case 'mw'
+                            beta = B.betaW{(B.SN==sn(p)&B.region==reg(r))}';
+                        case 'raw'
+                            beta = B.betaRAW{(B.sn==sn(p)&B.region==reg(r))}'; % no intercept - use T.betaRAWint otherwise
+                    end  
+                    partVec{p} = D.run;  % runs/partitions
+                    if ~naturalStats
+                        m = pcm_defineSequenceModels_fixed_noChunks(Seq,sn(p));
+                    else
+                        load(fullfile(pcmDir,'naturalstatisticmodel.mat'));
+                        NatStat = NatStats.G_cent;
+                        m = pcm_defineSequenceModels_fixed_noChunks_natStats(Seq,sn(p),NatStat); % make
+                    end
+                    [M,Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component');
+                    [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);
+                    condVec{p} = repmat(Z,max(D.run),1);
+                    indx = ones(size(D.run));
+                    Data{p} = beta(:,indx==1)';  % Data is N x P (cond x voxels) - no intercept
+                end;
+                % fit models
+                T = pcm_fitModels(Data,Mf,partVec,condVec,runEffect,algorithm);
+                T.roi = ones(size(T.SN))*reg(r);
+                T.regType = ones(size(T.SN))*regType(r);
+                T.regSide = ones(size(T.SN))*regSide(r);
+                T.sessN = ones(size(T.SN))*ss;
+                T=rmfield(T,{'reg','thetaCr'});
+                AllReg=addstruct(AllReg,T);
+                
+                % calculations - posterior probability, knockIN/OUT
+                K = pcm_calc(T.cross_likelihood,Comb);
+                K.roi = ones(length(K.indx),1)*reg(r);
+                K.regType = ones(length(K.indx),1)*regType(r);
+                K.regSide = ones(length(K.indx),1)*regSide(r);
+                K.sessN = ones(length(K.indx),1)*ss;
+                KK = addstruct(KK,K);
+                idxST = Comb(:,3)==1; % always including SeqType
+                G = pcm_calc(T.cross_likelihood(:,idxST),Comb(idxST,[1,2,4,5]));
+                G.roi = ones(length(G.indx),1)*reg(r);
+                G.regType = ones(length(G.indx),1)*regType(r);
+                G.regSide = ones(length(G.indx),1)*regSide(r);
+                G.sessN = ones(length(G.indx),1)*ss;
+                GG = addstruct(GG,G);
+                fprintf('Done sess-%d reg-%d/%d\n',ss,r,length(reg));
+            end
+            save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_sess-%d.mat',parcelType,ss)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_sess-%d.mat',parcelType,ss)),'-struct','KK');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_sess-%d.mat',parcelType,ss)),'-struct','GG');
+            KKK = addstruct(KKK,KK);
+            GGG = addstruct(GGG,GG);
+            AllRegSess = addstruct(AllRegSess,AllReg);
+        end
+        % save variables;
+        modelNames = {'FirstFing','AllFing','SeqType','Trained','Untrained'};
+        save(fullfile(pcmDir,sprintf('ModelFamilyComb_simple_%s.mat',parcelType)),'Comb','modelNames');
+        %save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s.mat',parcelType)),'-struct','AllRegSess');
+        %save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s.mat',parcelType)),'-struct','KKK');
+        %save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s.mat',parcelType)),'-struct','GGG');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','AllRegSess');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','KKK');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','GGG');
+    case 'PCM_PLOT_modelFamily_simple'
+        parcelType='Brodmann';
+        reg=[2,3];
+        modelType = 'seqType'; % seqType of noSeqType
+        metric='logBayes'; % logBayes, knockIN
+        naturalStats = 0;
+        vararginoptions(varargin,{'reg','parcelType','modelType','metric','naturalStats'});
+        switch modelType
+            case 'seqType'
+                KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)));
+                name = {'FF','AF','ST','TS','US'};
+            case 'noSeqType'
+                KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d.mat',parcelType,naturalStats)));
+                name = {'FF','AF','TS','US'};
+        end
+        for r = reg
+            % posterior Log
+            figure;
+            for s=1:4
+                a=getrow(KK,KK.roi==r&KK.sessN==s&KK.sn>3);
+                subplot(1,4,s)
+                plt.bar(a.indx,a.(metric));
+                set(gca,'XTickLabel',name);
+                drawline(0,'dir','horz');
+                plt.match('y');
+                if s==1
+                    ylabel('Log Bayes');
+                    title(sprintf('Sess%d %s',s, regname{r}));
+                else
+                    ylabel('');
+                    title(sprintf('Sess%d',s));
+                end
+            end
+        end    
+    case 'PCM_noiseCeilings'
+        % construct noise ceilings
+        runEffect  = 'fixed';
+        beta_choice = 'mw';
+        algorithm = 'NR'; % minimize or NR
+        parcelType = 'Brodmann'; % Brodmann, 162tessels
+        regSelect = 'all'; % all or subset
+        sn = [5:9,11:31]; 
+        sessN = 1:4;
+        reg = 1:8;
+        
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi','regSelect','fingType'})
+        AllReg=[];
+        if strcmp(parcelType,'162tessels') % this to do for new tesselation
+            switch regSelect
+                case 'subset'
+                    reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+                case 'all'
+                    reg=sml1_imana_dist('CLUSTER_choose_all','sessN',sessN)';
+            end
+        end
+        % here models - null and noise ceiling
+        M{1}.type       = 'feature';
+        M{1}.numGparams = 1;
+        M{1}.name       = 'null';
+        M{1}.Ac(:,1:12,1)  = zeros(12);
+        M{2}.type       = 'freedirect';
+        M{2}.numGparams = 0;
+        M{2}.theta0     = [];
+        M{2}.name       = 'noice_ceiling';
+        % two subject groups - split by even / odd subject assignment
+        sn_group{1} = sn(rem(sn,2)==1);
+        sn_group{2} = sn(rem(sn,2)==0);
+        for ss = sessN
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            for r = 1:length(reg)
+                for g = 1:2 % two groups of subjects
+                    for p=1:length(sn_group{g})
+                        glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn_group{g}(p)});
+                        D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                        switch (beta_choice)
+                            case 'uw'
+                                beta = B.betaUW{(B.sn==sn_group{g}(p)&B.region==reg(r))}';
+                            case 'mw'
+                                beta = B.betaW{(B.SN==sn_group{g}(p)&B.region==reg(r))}';
+                            case 'raw'
+                                beta = B.betaRAW{(B.sn==sn_group{g}(p)&B.region==reg(r))}'; % no intercept - use T.betaRAWint otherwise
+                        end
+                        partVec{p} = D.run;  % runs/partitions;
+                        condVec{p} = D.seqNumb;
+                        Data{p} = beta(:,1:length(D.run))';  % Data is N x P (cond x voxels) - no intercept
+                    end;
+                    % fit models
+                    T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm);
+                    T.roi = ones(size(T.SN))*reg(r);
+                    T.regType = ones(size(T.SN))*regType(r);
+                    T.regSide = ones(size(T.SN))*regSide(r);
+                    T.sessN = ones(size(T.SN))*ss;
+                    T=rmfield(T,{'reg','thetaCr'});
+                    if g==2
+                        T.SN = T.SN + length(sn_group{1});
+                    end
+                    AllReg=addstruct(AllReg,T);
+                    clear partVec condVec Data;
+                end
+            end
+            fprintf('Done sess-%d.\n\n\n',ss);
+        end
+        % save variables;
+        save(fullfile(pcmDir,sprintf('NoiseCeilings_allSeq_%s.mat',parcelType)),'-struct','AllReg');
+    case 'PCM_noiseCeilings_seqType'
+        % construct noise ceilings
+        runEffect  = 'fixed';
+        beta_choice = 'mw';
+        algorithm = 'NR'; % minimize or NR
+        parcelType = 'Brodmann'; % Brodmann, 162tessels
+        regSelect = 'all'; % all or subset
+        sn = [5:9,11:31]; 
+        sessN = 1:4;
+        reg = 1:8;
+        
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','parcelType','hemi','regSelect','fingType'})
+        AllReg=[];
+        if strcmp(parcelType,'162tessels') % this to do for new tesselation
+            switch regSelect
+                case 'subset'
+                    reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
+                case 'all'
+                    reg=sml1_imana_dist('CLUSTER_choose_all','sessN',sessN)';
+            end
+        end
+        % here models - null and noise ceiling
+        M{1}.type       = 'feature';
+        M{1}.numGparams = 1;
+        M{1}.name       = 'null';
+        M{1}.Ac(:,1:6,1)  = zeros(6);
+        M{2}.type       = 'freedirect';
+        M{2}.numGparams = 0;
+        M{2}.theta0     = [];
+        M{2}.name       = 'noice_ceiling';
+        % two subject groups - split by even / odd subject assignment
+        sn_group{1} = sn(rem(sn,2)==1);
+        sn_group{2} = sn(rem(sn,2)==0);
+        for ss = sessN
+            B=load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            for r = 1:length(reg)
+                for st = 1:2 % sequence type
+                    for g = 1:2 % two groups of subjects
+                        for p=1:length(sn_group{g})
+                            glmDirSubj=fullfile(glmSessDir{ss}, subj_name{sn_group{g}(p)});
+                            D=load(fullfile(glmDirSubj,'SPM_info.mat'));
+                            switch (beta_choice)
+                                case 'uw'
+                                    beta = B.betaUW{(B.sn==sn_group{g}(p)&B.region==reg(r))}';
+                                case 'mw'
+                                    beta = B.betaW{(B.SN==sn_group{g}(p)&B.region==reg(r))}';
+                                case 'raw'
+                                    beta = B.betaRAW{(B.sn==sn_group{g}(p)&B.region==reg(r))}'; % no intercept - use T.betaRAWint otherwise
+                            end
+                            partVec{p} = D.run(D.seqType==st);  % runs/partitions;
+                            condVec{p} = D.seqNumb(D.seqType==st);
+                            Data{p} = beta(:,(D.seqType==st))';  % Data is N x P (cond x voxels) - no intercept
+                        end;
+                        % fit models
+                        T = pcm_fitModels(Data,M,partVec,condVec,runEffect,algorithm);
+                        T.roi = ones(size(T.SN))*reg(r);
+                        T.regType = ones(size(T.SN))*regType(r);
+                        T.regSide = ones(size(T.SN))*regSide(r);
+                        T.sessN = ones(size(T.SN))*ss;
+                        T.seqType = ones(size(T.SN))*st;
+                        T=rmfield(T,{'reg','thetaCr'});
+                        if g==2
+                            T.SN = T.SN + length(sn_group{1});
+                        end
+                        AllReg=addstruct(AllReg,T);
+                        clear partVec condVec Data;
+                    end % group
+                end % seqType
+            end
+            fprintf('Done sess-%d.\n\n\n',ss);
+        end
+        % save variables;
+        save(fullfile(pcmDir,sprintf('NoiseCeilings_seqType_%s.mat',parcelType)),'-struct','AllReg');
+    
+    case 'PCM_noiseCeilings_plot'
+        parcelType = 'Brodmann'; % Brodmann, 162tessels
+        sessN = 1:4;
+        reg = 1:8;
+        naturalStats = 0;
+        vararginoptions(varargin,{'parcelType','reg','naturalStats'});
+        % plot PCM noise ceilings
+        T = load(fullfile(pcmDir,sprintf('NoiseCeilings_allSeq_%s.mat',parcelType)));
+        K = load(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)));
+        load(fullfile(pcmDir,sprintf('ModelFamilyComb_simple_%s.mat',parcelType)));
+        for r=reg
+            for ss=sessN
+                figure(r)
+                t=getrow(T,T.roi==r&T.sessN==ss);
+                k=getrow(K,K.roi==r&T.sessN==ss);
+                [~,bestM] = max(mean(k.cross_likelihood));
+             %   bestM = mode(j); % determine the best model
+                % form a new structure
+                data = k.cross_likelihood(:,[1:6,bestM]);
+                data = bsxfun(@minus,data,data(:,1));
+                M.data = data(:);
+                M.indx = kron([1:7]',ones(length(t.SN),1));
+                M.sessN = repmat(k.sessN,7,1);
+                M.SN = repmat(k.SN,7,1);
+                M = normData(M,'data');
+                subplot(1,4,ss)
+                plt.bar(M.indx,M.normdata,'subset',M.indx~=1); hold on; 
+                drawline(mean(t.cross_likelihood(:,2)-t.cross_likelihood(:,1)),'dir','horz'); 
+                drawline(0,'dir','horz'); 
+                set(gca,'XTickLabel',{'FF','AF','ST','TS','US','bestM'});
+                title(sprintf('%s - sess%d ',regname_cortex{r},ss));
+                if ss==1
+                    ylabel('logBayes');
+                else
+                    ylabel('');
+                end
+            end
+        end
+    case 'PCM_constructModelFamily'  % old
+        % includes seqType, chunks, transitions etc.
         runEffect  = 'fixed';
         beta_choice = 'mw';
         algorithm='NR'; % minimize or NR
@@ -3280,6 +4682,8 @@ switch(what)
         save(fullfile(pcmDir,sprintf('ModelFamilyComb_%s_new.mat',parcelType)),'Comb');
         save(fullfile(pcmDir,sprintf('ModelFamily_Fit_%s_fing%s_new.mat',parcelType,fingType)),'-struct','AllReg');
         save(fullfile(pcmDir,sprintf('ModelFamily_Stats_%s_fing%s_new.mat',parcelType,fingType)),'-struct','KK');
+    
+    
     case 'PCM_PLOT_modelFamily'
         %plots knock-IN / OUT / posterior probability
         parcelType='Brodmann';
@@ -3436,17 +4840,19 @@ switch(what)
                 ttestDirect(T.postProp-0.5,[T.sn],2,'onesample','subset',T.roi==r&T.sessN==ss,'split',T.indx);
             end
         end    
-    case 'PCM_constructModelFamily_seqType' % this in use
+    case 'PCM_constructModelFamily_seqType' 
+        % PCM modelling separately for trained and untrained sequences
+        % in use Dec 2019
         runEffect  = 'fixed';
         beta_choice = 'mw';
         algorithm='NR'; % minimize or NR
-        parcelType='162tessels'; % Brodmann or 162tessels
+        parcelType='Brodmann'; % Brodmann or 162tessels
+        modelType = 'allComponents';
         regSelect='all'; % all or subset
-        sn=[4:9,11:31]; % change
-        sessN=[1:4];
-        fingType='Count'; % count or NatStats
+        sn=[5:9,11:31]; % change
+        sessN=1:4;
         
-        vararginoptions(varargin,{'beta_choice','sn','reg','sessN','algorithm','seqType','parcelType','hemi','regSelect','fingType'})
+        vararginoptions(varargin,{'sn','reg','sessN','algorithm','modelType','parcelType','hemi','regSelect','fingType'})
         if strcmp(parcelType,'162tessels')
             reg=sml1_imana_dist('CLUSTER_choose','sessN',sessN)';
         end
@@ -3482,8 +4888,15 @@ switch(what)
                             case 'raw'
                                 beta = B.betaRAW{(B.sn==sn(p)&B.region==r)}'; % no intercept - use T.betaRAWint otherwise
                         end                  
-                        partVec{p} = D.run(D.seqType==st);  % runs/partitions        
-                        m = pcm_defineSequenceModels_seqType(Seq,SeqChunks,p,st);
+                        partVec{p} = D.run(D.seqType==st);  % runs/partitions
+                        switch modelType
+                            case 'allComponents'
+                                m = pcm_defineSequenceModels_seqType(Seq,SeqChunks,p,st);
+                                modelNames = {'FirstFing','AllFing','FingTransition','Chunk','Sequence'};
+                            case 'fewComponents'
+                                m = pcm_defineSequenceModels_seqType_simple(Seq,p,st);
+                                modelNames = {'FirstFing','AllFing','Sequence'};
+                        end
                         [M Z] = pcm_buildModelFromFeatures(m,'style','encoding_style','type','component','name','SeqTypeFeatures');
                         [Mf,Comb] = pcm_constructModelFamily(M,'fullModel',1);               
                         condVec{p} = repmat(Z,max(D.run),1);
@@ -3515,12 +4928,12 @@ switch(what)
                 end
             end
         end
-        
+        fprintf('************************************* Done all %s. ***************************************\n\n\n\n\n',modelType);
         % save variables;
         dircheck(fullfile(pcmDir));
-        save(fullfile(pcmDir,sprintf('ModelFamilyComb_seqType_%s.mat',parcelType)),'Comb');
-        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','AllReg');
-        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_fing%s.mat',parcelType,fingType)),'-struct','KK');
+        save(fullfile(pcmDir,sprintf('ModelFamilyComb_seqType_%s_%s.mat',modelType,parcelType)),'Comb','modelNames');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_seqType_%s_%s.mat',modelType,parcelType)),'-struct','AllReg');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_%s.mat',modelType,parcelType)),'-struct','KK');
     
     case 'PCM_FingSeq_modelFamily'
         % only first finger, all fingers, transitions, seqType
@@ -4025,11 +5438,11 @@ switch(what)
     case 'PLOT_PCM_modelFamily_seqType' % this relevant (Feb 14 2019)
         %plots knock-IN / OUT / posterior probability
         reg=1;
+        modelType = 'fewComponents'; % fewComponents or allComponents
         parcelType='Brodmann'; % Brodmann or 162tessels
-        fingType='Count';
-        vararginoptions(varargin,{'reg','parcelType'});
+        vararginoptions(varargin,{'reg','parcelType','modelType'});
         
-        KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_fing%s.mat',parcelType,fingType)));        
+        KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_seqType_%s_%s.mat',modelType,parcelType)));        
         nameFig = {'FF','AF','FT','Chu','Seq'};
         fig_num=0;
         for r = reg
@@ -4580,24 +5993,25 @@ switch(what)
         % choose based on significance
         sessN=1;
         betaChoice='multi';
-        vararginoptions(varargin,{'sessN','betaChoice'});
+        parcelType = '162tessels';
+        vararginoptions(varargin,{'sessN','betaChoice','parcelType'});
         
         for ss=sessN       
             indx=[];
-            T=load(fullfile(betaDir,'group',sprintf('stats_162tessels_%sPW_sess%d',betaChoice,ss)));
+            T=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
             for r=unique(T.region)'
                 T1 = getrow(T,T.region==r);
-                if ~any(isnan(T1.dist_train)) % make sure all subjects have data there
-                    [t,p]=ttestDirect(T.dist_train,[T.SN],1,'onesample','subset',T.region==r);
-                    if (p<0.1 & t>0) % include into selection
+                if sum(isnan(T1.dist_train))==0 % make sure all subjects have data there
+                 %   [t,p]=ttestDirect(T.dist_train,[T.SN],1,'onesample','subset',T.region==r);
+                 %   if (p<0.1 && t>0) % include into selection
                         indx=[indx;r];
-                    end
+                 %   end
                 end
             end
             if ss==sessN(1)
                 choice=indx;
             else
-                choice=unique([indx; choice]);
+                choice=intersect(indx, choice);
             end
         end
         varargout={choice}; 
@@ -4606,11 +6020,12 @@ switch(what)
         % use also for clustering
         sessN=1;
         betaChoice='multi';
-        vararginoptions(varargin,{'sessN','betaChoice'});
+        parcelType = '162tessels';
+        vararginoptions(varargin,{'sessN','betaChoice','parcelType'});
         
         for ss=sessN       
             indx=[];
-            T=load(fullfile(betaDir,'group',sprintf('stats_162tessels_%sPW_sess%d',betaChoice,ss)));
+            T=load(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d',parcelType,betaChoice,ss)));
             for r=unique(T.region)'
                 T1 = getrow(T,T.region==r);
                 if ~any(isnan(T1.dist_train)) % make sure all subjects have data there
@@ -6570,8 +7985,24 @@ switch(what)
         xlabel('session transition per region');
         ylabel('similarity');
 
-        
-        
+    case 'job1'
+      sml1_imana_dist('PCM_noiseCeilings_seqType');  
+      sml1_imana_dist('PCM_noiseCeilings');
+    case 'test_dist'
+        sml1_imana_dist('SEARCH_dist_map','sn',[26:31],'sessN',4);
+        sml1_imana_dist('SURF_wb:map_dist_individ','sessN',1:4); 
+        sml1_imana_dist('SURF_wb:map_dist_group','sessN',1:4);
+        sml1_imana_dist('SURF_wb:map_dist_individ','sessN',1:4); 
+        sml1_imana_dist('SURF_wb:map_dist_sess_diff_individ');
+        sml1_imana_dist('SURF_wb:map_sessTrans_group','metric','dist','INname',{'dist_all','dist_trained','dist_untrained','dist_cross'});
+        sml1_imana_dist('SURF_wb:cSPM_sessTrans_group');
+        sml1_imana_dist('SURF_wb:smooth_group','metric','summary_dist_sessTrans','kernel',1);
+    case 'run_job1'
+        sml1_imana_dist('PCM_constructModelFamily_simple','naturalStats',0);
+        sml1_imana_dist('PCM_constructModelFamily_simple');
+    case 'run_job2'
+       % sml1_imana_dist('PCM_constructModelFamily_simple','parcelType','Brodmann','reg',1:8);
+        sml1_imana_dist('BETA_get','parcelType','Yokoi_clusters','sn',[19:31],'sessN',4);
     otherwise
         disp('there is no such case.')
 end;    % switch(what)
@@ -6723,6 +8154,103 @@ function M = pcm_defineSequenceModels_fixed(Seq,Chunks,sn)
     M{7}(:,1:6)  = [zeros(6);A];       % Untrained sequence patterns
  
 end
+function M = pcm_defineSequenceModels_fixed_noChunks(Seq,sn)
+% written November 29th 2019
+%  No fixed / run component added
+% specific sequence + overall component modelled together
+    % --------------------------------------
+    % Model1: First finger model
+    if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
+        SeqNew = zeros(12,9);
+        SeqNew([1:6],:)=Seq([7:12],:);
+        SeqNew([7:12],:)=Seq([1:6],:);
+        Seq=SeqNew;
+    end
+    nSeq=size(Seq,1);
+    M{1}(:,:)=zeros(nSeq,5); % first finger
+    for u = 1:nSeq    % 12 seq
+        firstfing = Seq(:,1);
+        M{1}(u,firstfing(u)) = 1;
+    end
+    % ---------------------------------------
+    % Model2: All fingers
+    M{2}(:,:)=zeros(nSeq,5); % all fingers
+    for u = 1:nSeq
+        for j = 1:5                 % 5 fingers
+            placenumb = find(Seq(u,:)==j);
+            M{2}(u,j) = length(placenumb);
+        end
+    end
+    % ---------------------------------------
+    % Model3: Model with trained & untrained labels - 
+    M{3}(:,1)    = [ones(6,1);zeros(6,1)]; % Common component to trained
+    M{3}(:,2)    = [zeros(6,1);ones(6,1)]; % Common component to untrained
+    % --------------------------------------
+    % Model4: Model for each specific TRAINED sequence
+    A=zeros(6);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{4}(:,1:6)    = [A;zeros(6)];       % Trained sequence patterns
+    % --------------------------------------
+    % Model5: Model for each specific UNTRAINED sequence    
+    A=zeros(6);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{5}(:,1:6)  = [zeros(6);A];       % Untrained sequence patterns
+ 
+end
+function M = pcm_defineSequenceModels_fixed_noChunks_natStats(Seq,sn,NatStat)
+% written November 29th 2019
+%  No fixed / run component added
+% incorporating natural statistics
+% specific sequence + overall component modelled together
+    % --------------------------------------
+    % Model1: First finger model
+    if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
+        SeqNew = zeros(12,9);
+        SeqNew([1:6],:)=Seq([7:12],:);
+        SeqNew([7:12],:)=Seq([1:6],:);
+        Seq=SeqNew;
+    end
+    nSeq=size(Seq,1);
+    M{1}(:,:)=zeros(nSeq,5); % first finger
+    for u = 1:nSeq    % 12 seq
+        firstfing = Seq(:,1);
+        M{1}(u,firstfing(u)) = 1;
+    end
+    M{1} = M{1}*NatStat*M{1}';
+    % ---------------------------------------
+    % Model2: All fingers
+    M{2}(:,:)=zeros(nSeq,5); % all fingers
+    for u = 1:nSeq
+        for j = 1:5                 % 5 fingers
+            placenumb = find(Seq(u,:)==j);
+            M{2}(u,j) = length(placenumb);
+        end
+    end
+    M{2} = M{2}*NatStat*M{2}';
+    % ---------------------------------------
+    % Model3: Model with trained & untrained labels - 
+    M{3}(:,1)    = [ones(6,1);zeros(6,1)]; % Common component to trained
+    M{3}(:,2)    = [zeros(6,1);ones(6,1)]; % Common component to untrained
+    % --------------------------------------
+    % Model4: Model for each specific TRAINED sequence
+    A=zeros(6);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{4}(:,1:6)    = [A;zeros(6)];       % Trained sequence patterns
+    % --------------------------------------
+    % Model5: Model for each specific UNTRAINED sequence    
+    A=zeros(6);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{5}(:,1:6)  = [zeros(6);A];       % Untrained sequence patterns
+ 
+end
 function M = pcm_defineSequenceModels_fixed_new(Seq,Chunks,sn)
 %  No fixed / run component added
 % specific sequence + overall component modelled together
@@ -6871,6 +8399,42 @@ function M = pcm_defineSequenceModels_seqType(Seq,Chunks,sn,seqType)
         A(i,i)=1;
     end;
     M{5}(:,1:6)    = A;       % Trained sequence patterns
+end
+function M = pcm_defineSequenceModels_seqType_simple(Seq,sn,seqType)
+% simpler version with no chunks and transitions
+    if rem(sn,2)==0 % for group 2 - switch around sequences 1-6, 7-12
+        SeqNew = zeros(12,9);
+        SeqNew([1:6],:)=Seq([7:12],:);
+        SeqNew([7:12],:)=Seq([1:6],:);
+        Seq=SeqNew;
+    end
+    if seqType==1
+        SeqSet=Seq([1:6],:);
+    elseif seqType==2
+        SeqSet=Seq([7:12],:);
+    end
+    % Model1: First finger model
+    M{1}(:,:)=zeros(6,5); % first finger
+    for u = 1:size(SeqSet,1)    % 6 seq
+        firstfing = SeqSet(:,1);
+        M{1}(u,firstfing(u)) = 1;
+    end
+    % ---------------------------------------
+    % Model2: All fingers
+    M{2}(:,:)=zeros(6,5); % all fingers
+    for u = 1:size(SeqSet,1)
+        for j = 1:5                 % 5 fingers
+            placenumb = find(SeqSet(u,:)==j);
+            M{2}(u,j) = length(placenumb);
+        end
+    end
+    % --------------------------------------
+    % Model3: Model for each specific sequence
+    A=zeros(3);
+    for i=1:6
+        A(i,i)=1;
+    end;
+    M{3}(:,1:6)    = A;       % Trained sequence patterns
 end
 function M = pcm_defineSequenceFingerModels_new(Seq,sn)
 %  No fixed / run component added

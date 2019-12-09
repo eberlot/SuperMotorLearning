@@ -4194,12 +4194,15 @@ switch(what)
                 clear RGBdata;
                 C = caret_load([hem{h} sprintf('.summary_%s_sess%d.metric',imageType,ss)]);
                 for i=1:C.num_cols
-                    data(:,i) = zscore(C.data(:,i));
-                    column_name{i} = sprintf('zscore_%s',C.column_name{i});
+                    
                 end
-                C_new=caret_struct('metric','data',data,'column_name',column_name);
-                caret_save([surfaceGroupDir filesep hem{h} sprintf('.%s_zscore_sess%d.metric',imageType,ss)],C_new);
-                clear C C_new data;
+                keyboard;
+                RGBdata(:,1) = C.data(:,2); % Red: trained
+                RGBdata(:,3) = C.data(:,3); % Blue: untrained
+                sc=[minLim maxLim;minLim maxLim;minLim maxLim];  % scaling
+                name={sprintf('%s_sess-%d_trained_untrained',imageType,ss)};
+                C=caret_struct('RGBpaint','data',RGBdata,'scales',{sc},'column_name',name);
+                caret_save([surfaceGroupDir filesep hem{h} sprintf('.%s_sess%d.RGB_paint',imageType,ss)],C);
             end
         end;
     case 'SURF_group_RGB'

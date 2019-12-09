@@ -198,13 +198,15 @@ switch(what)
        style.use('Seq');
        figure
        for r=1:length(roi)
-           subplot(2,numel(roi),r)
-           plt.bar(T.sessN,T.r_cross,'subset',T.regSide==hemi & T.regType==roi(r),'split',T.seqType,'leg',{'trained','untrained'},...
+           figure(99)
+           subplot(1,numel(roi),r)
+           plt.line([T.sessN>3 T.sessN],T.r_cross,'subset',T.regSide==hemi & T.regType==roi(r),'split',T.seqType,'leg',{'trained','untrained'},...
                'leglocation','northeast');
            title(sprintf('cross-corr %s',regname_cortex{roi(r)}));
            ylabel('r');
-           subplot(2,numel(roi),numel(roi)+r)
-           plt.bar(T.sessN,T.r_cross_rm,'subset',T.regSide==hemi & T.regType==roi(r),'split',T.seqType,'leg',{'trained','untrained'},...
+           figure(98)
+           subplot(1,numel(roi),r)
+           plt.line([T.sessN>3 T.sessN],T.r_cross_rm,'subset',T.regSide==hemi & T.regType==roi(r),'split',T.seqType,'leg',{'trained','untrained'},...
                'leglocation','northeast');
            title(sprintf('noMean %s',regname_cortex{roi(r)}));
            ylabel('r');
@@ -400,10 +402,11 @@ switch(what)
         % Calculates correlation coefficients between splits for each
         % condition pair - within subject & session.
 
-        reg = [1:8]; 
-        sn  = [1:9,11,12];
-        sessN = [1:4];
+        reg = 1:8; 
+        sn  = [5:9,11:31];
+        sessN = 1:4;
         remove_mean = 1; % subtract
+        parcelType = 'Brodmann';
         betaChoice = 'mw'; % uw / mw / raw
 
         vararginoptions(varargin,{'roi','sn','remove_mean','sessN','betaChoice'});
@@ -416,7 +419,7 @@ switch(what)
         
         C=[];
         for ss = sessN
-            D   = load(fullfile(regDir,sprintf('betas_sess%d.mat',ss)));
+            D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
             splitcorrs = [];
             for roi = reg;
                 T   = getrow(D,D.region==reg(roi));
@@ -474,23 +477,22 @@ switch(what)
                 end
             end
         end
-
         % save
-        save(fullfile(stabDir,sprintf('CrossvalCorr_witSess_removeMean%d_betas_%s.mat',remove_mean,betaChoice)),'-struct','C');   
+        save(fullfile(stabDir,sprintf('crossvalCorr_witSess_%s_removeMean%d_betas_%s.mat',parcelType,remove_mean,betaChoice)),'-struct','C');   
         case 'PLOT_crossvalCorr_witSess'
-        
         betaChoice = 'mw';
         remove_mean=1;
-        reg=[1:8];
-        
+        reg=1:8;
+        parcelType = 'Brodmann';
         vararginoptions(varargin,{'betaChoice','remove_mean','reg'})
         
-        C=load(fullfile(stabDir,sprintf('CrossvalCorr_witSess_removeMean%d_betas_%s.mat',remove_mean,betaChoice)));
+        C=load(fullfile(stabDir,sprintf('crossvalCorr_witSess_%s_removeMean%d_betas_%s.mat',parcelType,remove_mean,betaChoice)));
         
         figure
+        style.use('Seq');
         for r=reg
             subplot(1,numel(reg),r)
-            barplot(C.sessN, [C.trainCorr C.untrainCorr],'subset',C.reg==reg(r),'leg',{'train','untrain'});
+            plt.line([C.sessN>3 C.sessN], [C.trainCorr C.untrainCorr],'subset',C.reg==reg(r),'leg',{'train','untrain'});
             title(sprintf('%s',regname{r}));
             if r==1
                 ylabel('Crossvalidated correlation of beta patterns'); xlabel('Session');
@@ -498,18 +500,7 @@ switch(what)
                 ylabel(''); xlabel('');
             end
         end
-        
-        figure
-        for i=1:numel(reg)
-            subplot(1,numel(reg),i)
-            lineplot([[C.sessN>3; C.sessN>3] [C.sessN; C.sessN]], [C.trainCorr; C.untrainCorr],'split',[ones(size(C.trainCorr));ones(size(C.trainCorr))*2],'style_thickline','leg',{'train','untrain'},'subset',[C.reg;C.reg]==i);
-            title(sprintf('%s',regname{i}));
-            if r==1
-                ylabel('Crossvalidated correlation of beta patterns'); xlabel('Session');
-            else
-                ylabel(''); xlabel('');
-            end
-        end
+
         case 'PLOT_crossvalCorr_QC_motion'
         % relate the consistency of patterns to amount of motion
         betaChoice = 'raw';
@@ -645,7 +636,6 @@ switch(what)
         Consist.roi(roi,1) = roi;
         
        end
-       
         figure(1)
         col=hsv(7);
         for i = reg
@@ -806,9 +796,9 @@ switch(what)
     
     case 'reliability_betweenSess' 
         % collects data of interest, submits it to the main case
-        reg = [1:16]; % across hemispheres 
-        sn  = [4:9,11:31];
-        sessN = [1:2];
+        reg = 1:16; % across hemispheres 
+        sn  = [5:9,11:31];
+        sessN = 1:2;
         regcorrType = 'zero';
         seqTypeCorr = 'seqSpec'; % seqSpec or seqType
         parcelType='Brodmann';
@@ -1144,16 +1134,24 @@ switch(what)
         regcorrType = 'zero';
         seqTypeCorr = 'seqSpec'; % seqSpec or seqType
         parcelType = 'Brodmann';
+        transType = 'subsequent';
         sessTr=[1:3]; % which session transitions to include
         %1: sess1-2
         %2: sess2-3
         %3: sess3-4
-        sessName={'1-2','2-3','3-4'};
-        
-        vararginoptions(varargin,{'reg','regcorrType','seqTypeCorr','sessTr','parcelType','hemi'});
+
+        vararginoptions(varargin,{'reg','regcorrType','seqTypeCorr','sessTr','parcelType','hemi','transType'});
         T=[];
+        switch transType
+            case 'subsequent'
+                sessName={'1-2','2-3','3-4'};
+                t1 = [1 2 3]; t2 = t1+1;
+            case 'relativeto1'
+                sessName={'1-2','1-3','1-4'};
+                t1 = [1 1 1]; t2 = [2 3 4];
+        end
         for t=1:numel(sessTr)
-            R=load(fullfile(stabDir,sprintf('stability_acrSess_%s_sess%d-%d_%s_%sRegularised',seqTypeCorr,t,t+1,parcelType,regcorrType)));
+            R=load(fullfile(stabDir,sprintf('stability_acrSess_%s_sess%d-%d_%s_%sRegularised',seqTypeCorr,t1(t),t2(t),parcelType,regcorrType)));
             R.sessTr=ones(size(R.w1))*t;
             T=addstruct(T,R);
         end

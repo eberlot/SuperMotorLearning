@@ -1,4 +1,4 @@
-function colors = colorDendrogram(Z, N, varargin);
+function colors = colorDendrogram(Z, N, varargin)
 %% colors = colorDendrogram(Z, N, varargin);
 % Gives sensible colors given linkage matrix Z (=linkage(X)).
 % 

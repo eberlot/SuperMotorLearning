@@ -1,9 +1,9 @@
-function varargout = sml1_pcm(what, varargin);
+function varargout = sml1_pcm2(what, varargin);
 % SuperMoterLearning PCM modelling
 % on real data.
 baseDir         = '/Volumes/G_Thunderbolt/Yokoi_Research/data/SequenceLearning/sh_eva'; %
 
-%addpath('/Users/atsushiyokoi/Dropbox/Matlab/matlab/imaging/mva/pcm_develop/');
+addpath('/Users/atsushiyokoi/Dropbox/Matlab/matlab/imaging/mva/pcm_develop/');
 
 figDir = fullfile(baseDir, 'cluster_sess4','figures'); 
 
