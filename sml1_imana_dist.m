@@ -4360,9 +4360,9 @@ switch(what)
                 GG = addstruct(GG,G);
                 fprintf('Done sess-%d reg-%d/%d\n',ss,r,length(reg));
             end
-            save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_sess-%d.mat',parcelType,ss)),'-struct','AllReg');
-            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_sess-%d.mat',parcelType,ss)),'-struct','KK');
-            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_sess-%d.mat',parcelType,ss)),'-struct','GG');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)),'-struct','AllReg');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)),'-struct','KK');
+            save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)),'-struct','GG');
             KKK = addstruct(KKK,KK);
             GGG = addstruct(GGG,GG);
             AllRegSess = addstruct(AllRegSess,AllReg);
@@ -4370,12 +4370,26 @@ switch(what)
         % save variables;
         modelNames = {'FirstFing','AllFing','SeqType','Trained','Untrained'};
         save(fullfile(pcmDir,sprintf('ModelFamilyComb_simple_%s.mat',parcelType)),'Comb','modelNames');
-        %save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s.mat',parcelType)),'-struct','AllRegSess');
-        %save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s.mat',parcelType)),'-struct','KKK');
-        %save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s.mat',parcelType)),'-struct','GGG');
         save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','AllRegSess');
         save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','KKK');
         save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','GGG');
+    case 'PCM_combineSess'
+        parcelType = 'tesselsWB_642';
+        sessN = 1:4;
+        naturalStats = 1;
+        vararginoptions(varargin,{'sessN','naturalStats','parcelType'});
+        GG = []; KK = []; AllRegSess = [];
+        for ss=sessN
+            AllReg = load(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)));
+            K = load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)));
+            G = load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d_sess-%d.mat',parcelType,naturalStats,ss)));
+            GG = addstruct(GG,G);
+            KK = addstruct(KK,K);
+            AllRegSess = addstruct(AllRegSess,AllReg);         
+        end
+        save(fullfile(pcmDir,sprintf('ModelFamily_Fit_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','AllRegSess');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','KK');
+        save(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d.mat',parcelType,naturalStats)),'-struct','GG');
     case 'PCM_PLOT_modelFamily_simple'
         parcelType='Brodmann';
         reg=[2,3];
@@ -4553,7 +4567,53 @@ switch(what)
         end
         % save variables;
         save(fullfile(pcmDir,sprintf('NoiseCeilings_seqType_%s.mat',parcelType)),'-struct','AllReg');
-    
+    case 'PCM_PLOT_surface_modelFamily_simple'
+        % here project results to the surface
+        parcelType = 'Yokoi_clusters';
+        naturalStats = 1;
+        hemi = 1:2;
+        sessN = 1:4;
+        modelType = 'noSeqType';
+        metric = 'logBayes';
+        nTessel = 642;
+        vararginoptions(varargin,{'parcelType','naturalStats','modelType','metric','hemi','sessN'});
+        
+        switch modelType
+            case 'seqType'
+                KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_%s_naturalStats-%d.mat',parcelType,naturalStats)));
+                name = {'FirstFinger','AllFingers','SeqType','TrainedSeq','UntrainedSeq'};
+            case 'noSeqType'
+                KK=load(fullfile(pcmDir,sprintf('ModelFamily_Stats_simple_noSeqType_%s_naturalStats-%d.mat',parcelType,naturalStats)));
+                name = {'FirstFinger','AllFingers','TrainedSeq','UntrainedSeq'};
+        end
+        
+        for h=hemi
+            switch parcelType
+                case 'Yokoi_clusters'
+                    G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('%s.Yokoi2019.10cluster.label.gii',hemI{h})));
+                case 'tesselsWB_642'
+                    G = gifti(fullfile(wbDir,'FS_LR_164',sprintf('Icosahedron-%d.164k.%s.label.gii',nTessel,hemI{h})));
+            end
+            reg = unique(KK.regType(KK.regSide==h));
+            %reg = reg(reg~=0);
+            % initialize data structure, counter
+            idx = 1;
+            data = zeros(size(G.cdata,1),numel(sessN)*numel(unique(KK.indx)));
+            for ss=sessN
+                for i=unique(KK.indx)'
+                    for r=reg'
+                        t = getrow(KK,KK.sessN==ss&KK.regType==r&KK.regSide==h&KK.indx==i);
+                        data(G.cdata==r,idx) = mean(t.(metric));
+                    end
+                    columnName{idx} = sprintf('sess-%d_%s_%s',ss,metric,name{i});
+                    idx = idx+1;
+                end
+            end
+            outfile = fullfile(wbDir,'FS_LR_164',sprintf('%s.PCM.%s.naturalStats-%d.%s_modelFamily_%s.func.gii',hemI{h},parcelType,naturalStats,metric,modelType));
+            G = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',columnName);
+            save(G, outfile);
+        end
+        
     case 'PCM_noiseCeilings_plot'
         parcelType = 'Brodmann'; % Brodmann, 162tessels
         sessN = 1:4;

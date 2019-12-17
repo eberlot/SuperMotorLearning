@@ -509,10 +509,10 @@ switch what
         [S,Q,n_it] = iterated_genlouvain(B,10000,1,1,'moverandw',[], PP);
         S = reshape(S, N, T);
     case 'CONNECT:group'
-        nTessel     = 642; % 162 or 362
+        nTessel     = 162; % 162 or 362
         seqType     = 'all'; % all, trained, untrained
-        crossType   = 'doubleCrossval'; % alldata or splithalf
-        distType    = 'cosineW'; % distance type
+        crossType   = 'splithalf'; % alldata or splithalf
+        distType    = 'cosine'; % distance type
         maxClust    = 10;
         hemiType    = 'CortexBoth'; % CortexBoth, CortexLeft
         vararginoptions(varargin,{'sn','sessN','nTessel','sessType','seqType','distType','crossType','maxClust','seqType','hemiType'});
@@ -542,7 +542,7 @@ switch what
         % here plot the clusters and dendrogram
         nTessel     = 642; % 162 or 362
         seqType     = 'all'; % all, trained, untrained
-        crossType   = 'doubleCrossval'; % all or splithalf
+        crossType   = 'splithalf'; % all or splithalf
         distType    = 'cosineW'; % distance type
         hemiType    = 'CortexBoth';
         nCluster    = 10;
@@ -844,18 +844,21 @@ switch what
     case 'run_all'
         sT = {'trained','all'};
         nClust = [10,12,14];
-        for st=1:2
-            sml_connect('ALPHA:cross_sess_calculate','crossType','doubleCrossval','tesselSelect',1,'seqType',sT{st});
-            sml_connect('ALPHA:cross_sess_calculate','crossType','doubleCrossval','tesselSelect',1,'hemi',1:2,'seqType',sT{st});
-            for n=nClust
-                sml_connect('CONNECT:group','seqType',sT{st},'nTessel',642,'hemiType','CortexBoth','maxClust',n,'crossType','doubleCrossval');
-                sml_connect('CONNECT:group','seqType',sT{st},'nTessel',642,'hemiType','CortexLeft','maxClust',n,'crossType','doubleCrossval');
-                sml_connect('CONNECT:cluster_dendrogram','seqType',sT{st},'nTessel',642,'hemiType','CortexBoth','nCluster',n,'crossType','doubleCrossval');
-                sml_connect('CONNECT:cluster_dendrogram','seqType',sT{st},'nTessel',642,'hemiType','CortexLeft','nCluster',n,'crossType','doubleCrossval');
+        crossT = {'splithalf'};
+        for s = 1
+            for st=1:2
+                  sml_connect('ALPHA:cross_sess_calculate','crossType','doubleCrossval','tesselSelect',1,'seqType',sT{st});
+                  sml_connect('ALPHA:cross_sess_calculate','crossType','doubleCrossval','tesselSelect',1,'hemi',1:2);
+                for n=nClust
+                    sml_connect('CONNECT:group','seqType',sT{st},'nTessel',642,'distType',d{1},'hemiType','CortexBoth','maxClust',n,'crossType',crossT{s});
+                    sml_connect('CONNECT:group','seqType',sT{st},'nTessel',642,'distType',d{1},'hemiType','CortexLeft','maxClust',n,'crossType',crossT{s});
+                    sml_connect('CONNECT:cluster_dendrogram','seqType',sT{st},'nTessel',362,'distType',d{1},'hemiType','CortexBoth','nCluster',n,'crossType',crossT{s});
+                    sml_connect('CONNECT:cluster_dendrogram','seqType',sT{st},'nTessel',362,'distType',d{1},'hemiType','CortexLeft','nCluster',n,'crossType',crossT{s});
+                end
+                fprintf('***** Done all for %s - %s *****\n\n\n',d{1},sT{st});
             end
-            fprintf('***** Done all for %s *****\n\n\n',sT{st});
+            fprintf('***** Done all for %s *****\n\n\n',d{1});
         end
-        fprintf('***** Done all *****\n\n\n');
     case 'run_tessel'
         sml_connect('ALPHA:cross_sess_calculate','distType','cosineW','nTessel',642,'hemi',1:2);
         sml_connect('ALPHA:cross_sess_calculate','distType','cosineW','nTessel',642,'hemi',1,'seqType','trained');
