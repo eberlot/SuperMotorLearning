@@ -423,7 +423,10 @@ switch what
                         for rr=1:size(t.SN,1)
                             data{rr,:} = t.betaW{rr}(1:size(condVec,1),:);
                         end
-                        lCKA = doubleCrossval_lcka_multiReg(data,nPart,nCond);
+                        data = sml_connect('HOUSEKEEPING:removeRunMean',data,nPart,nCond);
+                        tElapsed = tic;
+                        lCKA = doubleCrossval_lcka_cv(data,nPart,nCond);
+                        toc(tElapsed);
                         A.dist = rsa_vectorizeRDM(lCKA.ccv);
                     case 'trained'
                         condVec = condVec(condVec<7,:);
@@ -431,6 +434,7 @@ switch what
                         for rr=1:size(t.SN,1)
                             data{rr,:} = t.betaW{rr}(condVec>0,:);
                         end
+                        data = sml_connect('HOUSEKEEPING:removeRunMean',data,nPart,nCond);
                         lCKA = doubleCrossval_lcka_multiReg(data,nPart,nCond);
                         A.dist = rsa_vectorizeRDM(lCKA.ccv);
                     case 'untrained'
@@ -439,6 +443,7 @@ switch what
                         for rr=1:size(t.SN,1)
                             data{rr,:} = t.betaW{rr}(condVec>0,:);
                         end
+                        data = sml_connect('HOUSEKEEPING:removeRunMean',data,nPart,nCond);
                         lCKA = doubleCrossval_lcka_multiReg(data,nPart,nCond);
                         A.dist = rsa_vectorizeRDM(lCKA.ccv);
                 end
@@ -840,6 +845,21 @@ switch what
         D.l1 = TT.l1';
         D.l2 = TT.l2';
         varargout{1}=D;
+    
+    case 'HOUSEKEEPING:removeRunMean'
+        act = varargin{1};
+        nPart = varargin{2};
+        nCond = varargin{3};
+        partVec = kron((1:nPart)',ones(nCond,1));
+        numLayer = size(act,1);
+        actN = cell(numLayer,1);
+        for i=1:numLayer
+            actN{i} = [];
+            for j=1:max(partVec)
+                actN{i} = [actN{i}; bsxfun(@minus,act{i}(partVec==j,:),mean(act{i}(partVec==j,:),1))];
+            end
+        end
+        varargout{1}=actN;  
         
     case 'run_all'
         sT = {'trained','all'};
