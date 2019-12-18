@@ -427,7 +427,7 @@ switch what
                         tElapsed = tic;
                         lCKA = doubleCrossval_lcka_cv(data,nPart,nCond);
                         toc(tElapsed);
-                        A.dist = rsa_vectorizeRDM(lCKA.ccv);
+                        A.dist = rsa_vectorizeRDM(lCKA);
                     case 'trained'
                         condVec = condVec(condVec<7,:);
                         nCond = numel(unique(condVec));
@@ -435,8 +435,10 @@ switch what
                             data{rr,:} = t.betaW{rr}(condVec>0,:);
                         end
                         data = sml_connect('HOUSEKEEPING:removeRunMean',data,nPart,nCond);
-                        lCKA = doubleCrossval_lcka_multiReg(data,nPart,nCond);
-                        A.dist = rsa_vectorizeRDM(lCKA.ccv);
+                        tElapsed = tic;
+                        lCKA = doubleCrossval_lcka_cv(data,nPart,nCond);
+                        toc(tElapsed);
+                        A.dist = rsa_vectorizeRDM(lCKA);
                     case 'untrained'
                         condVec = condVec(condVec>6,:);
                         nCond = numel(unique(condVec));
