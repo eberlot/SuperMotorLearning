@@ -71,7 +71,6 @@ switch what
         end;
     end
     fprintf('\nDone processing case PSC:create.\n');
-
     case 'PSC:cross-section'
         % create cross-section plots
         % of trained / control across sessions
@@ -352,7 +351,7 @@ switch what
                     end;
                     cSPM=caret_getcSPM('onesample_t','data',Data.data(:,s),'maskthreshold',0.5); % set maskthreshold to 0.5 = calculate stats at location if 50% of subjects have data at this point
                     caret_savecSPM([surfaceGroupDir filesep hem{h} '.' SPMname{i} '_stats.metric'],cSPM);
-                    save([surfaceGroupDir  filesep   'cSPM_' SPMname{i} '.mat'],'cSPM');
+                    save([surfaceGroupDir  filesep   'cSPM_' SPMname{i} '_sess' num2str(ss) '.mat'],'cSPM');
                     % here for surface plots
                     if i==1 % initialise data
                         data = zeros(size(Data.data,1),length(SPMname)*2);
@@ -426,6 +425,64 @@ switch what
             end;
         end
         fprintf('\nDone processing case SEARCH: create_rgb.\n');
+        
+    case 'surf_group_list'          % Get list of clusters on surface
+        % TabDat=caret_list(Surface,cSPM,u,k,varargin);
+        hemi        = 1;
+        cSPMname    = 'cSPM_dist_all_sess1.mat';
+        th_hight    = 0.01; % p-val
+        th_size     = 0.01;% cluster size mm^2 or corrected p-value
+        vararginoptions(varargin,{'cSPMname','th_hight','th_size'});
+        for h=hemi
+            surfaceGroupDir=[caretDir filesep 'fsaverage_sym' filesep hemName{h}];
+            cd(surfaceGroupDir)
+            
+            %---- define name of coord and topology
+            coordfile   = [hemName{h} filesep hem{h} '.WHITE.coord'];
+            topofile    = [hemName{h} filesep hem{h} '.CLOSED.topo'];
+            
+            %---- get surface
+            surface = caret_getsurface(coordfile,topofile);
+            
+            %---- load reference .paint file
+            P = caret_load('ROI.paint');
+            
+            %---- load cSPM
+            cSPMfile = fullfile(surfaceGroupDir,cSPMname);
+            load(cSPMfile);
+            
+            %---- get table
+            table = caret_list(surface,cSPM,th_hight,th_size,'label',P,'mask',P.data>0);
+            
+        end;
+    case 'surf_group_list_wb'          % Get list of clusters on surface
+        % TabDat=caret_list(Surface,cSPM,u,k,varargin);
+        hemi        = 1;
+        cSPMname    = 'cSPM_L.psc_all.sess-1.mat';
+        th_hight    = 0.05; % p-val
+        th_size     = 0.05;% cluster size mm^2 or corrected p-value
+        vararginoptions(varargin,{'cSPMname','th_hight','th_size'});
+        for h=hemi
+            surfaceGroupDir=fullfile(wbDir,'FS_LR_164');
+            cd(surfaceGroupDir)
+            
+            %---- define name of coord and topology
+            %coordfile   = [hemName{h} filesep hem{h} '.WHITE.coord'];
+            %topofile    = [hemName{h} filesep hem{h} '.CLOSED.topo'];
+            %coordfile = sprintf('fs_LR.164k.%s.white.surf.gii',hemI{h});
+            %---- get surface
+            surf = gifti(sprintf('fs_LR.164k.%s.flat.surf.gii',hemI{h}));
+            surface = surf.vertices;
+            %surface = caret_getsurface(coordfile,topofile);
+            %---- load reference .paint file
+            label = gifti('ROI.164k.L.label.gii');
+            %---- load cSPM
+            cSPMfile = fullfile(surfaceGroupDir,cSPMname);
+            load(cSPMfile);
+            %---- get table
+            table = surf_list(surface,cSPM,th_hight,th_size,'label',label,'mask',label.cdata>0);
+            
+        end;
         
     case 'CORR:withinSess'
         % within session correlation of trained - untrained

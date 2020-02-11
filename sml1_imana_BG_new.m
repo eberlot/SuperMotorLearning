@@ -1342,8 +1342,6 @@ switch(what)
                 indx=1; % start again
             end
         end
-        
-        
         M{maskNum}=combineMask(mask);
         % write the mask(s)
         for m = 1:maskNum

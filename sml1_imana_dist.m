@@ -175,14 +175,14 @@ switch(what)
      % create surface maps of percent signal change 
      % trained and untrained sequences
         sessN=[1:4];
-        sn=[4:9,11:31];
-        smooth = 0;   
+        sn=[5:9,11:31];
+        smooth = 1;   
         vararginoptions(varargin,{'sn','sessN','smooth'});
 
         hemisphere=1:length(hem);
         fileList = [];
         column_name = [];
-        name={'Seq1','Seq2','Seq3','Seq4','Seq5','Seq6','Seq7','Seq8','Seq9','Seq10','Seq11','Seq12','TrainSeq','UntrainSeq'};
+        name={'Seq1','Seq2','Seq3','Seq4','Seq5','Seq6','Seq7','Seq8','Seq9','Seq10','Seq11','Seq12','AllSeq','TrainSeq','UntrainSeq'};
         
         for ss=sessN
             for n = 1:length(name)
@@ -202,26 +202,24 @@ switch(what)
                     for f=1:length(fileList)
                         images{f}=fullfile(glmSessDir{ss},subj_name{s},fileList{f});
                     end;
-                    metric_out = fullfile(caretSDir,sprintf('%s_Contrasts_sess%d.metric',subj_name{s},ss));
+                    metric_out = fullfile(caretSDir,sprintf('%s_psc_sess%d.metric',subj_name{s},ss));
                     M=caret_vol2surf_own(C1.data,C2.data,images,'ignore_zeros',1);
                     M.column_name = column_name;
                     caret_save(metric_out,M);
-                    fprintf('Sess %d, Subj %d, Hem %d\n',ss,s,h);
-                    
                     if smooth == 1;
                         % Smooth output .metric file (optional)
                         % Load .topo file
+                        cd(caretSDir);
                         closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
                         Out = caret_smooth(metric_out, 'coord', white, 'topo', closed);%,...
                         %'algorithm','FWHM','fwhm',12);
                         char(Out);  % if smoothed adds an 's'
-                    else
                     end;
-                    
+                    fprintf('Sess %d, Subj %d, Hem %d\n',ss,s,h);
                 end; % hemi
             end; % sn
         end; % session
-    case 'PSC_create_loc'
+    case 'PSC_create_loc' % depreciated
         % calculate psc for all digits / ind digit vs. rest - based on betas    
         glm=2;
         vararginoptions(varargin,{'sn','glm'});
@@ -444,6 +442,775 @@ switch(what)
         set(gca,'Box','off','XLim',[1 length(x)],'YLim',[-1.5 1.5]);
         set(gcf,'PaperPosition',[2 2 5 3]);
 
+    case 'search_job'
+        sml1_imana_dist('SURF_wb:non-permuted','sessN',3:4);
+        sml1_imana_dist('SURF_wb:non-permuted','sessN',2:4,'metric','psc');
+        sml1_imana_dist('SURF_wb:non-permuted','sessN',1,'metric','psc');
+        sml1_imana_dist('SURF_wb:permute_stats','sessN',3:4);
+        sml1_imana_dist('SURF_wb:permute_stats','sessN',2:4,'metric','psc');
+        sml1_imana_dist('SURF_wb:permute_stats','sessN',1,'metric','psc');
+    case 'SURF_psc'
+     % create surface maps of percent signal change 
+     % trained and untrained sequences
+        sessN=[1:4];
+        sn=[5:9,11:31];
+        smooth = 1;   
+        vararginoptions(varargin,{'sn','sessN','smooth'});
+
+        hemisphere=1:length(hem);
+        fileList = [];
+        column_name = [];
+        name={'Seq1','Seq2','Seq3','Seq4','Seq5','Seq6','Seq7','Seq8','Seq9','Seq10','Seq11','Seq12','AllSeq','TrainSeq','UntrainSeq'};
+        
+        for ss=sessN
+            for n = 1:length(name)
+                fileList{n}=fullfile(['psc_sess' num2str(ss) '_' name{n} '.nii']);
+                column_name{n} = fullfile(sprintf('Sess%d_%s.nii',ss,name{n}));
+            end
+            for s=sn
+                for h=hemisphere
+                    caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
+                    specname=fullfile(caretSDir,['x',subj_name{s} '.' hem{h}   '.spec']);
+                    white=fullfile(caretSDir,[hem{h} '.WHITE.coord']);
+                    pial=fullfile(caretSDir,[hem{h} '.PIAL.coord']);
+                    
+                    C1=caret_load(white);
+                    C2=caret_load(pial);
+                    
+                    for f=1:length(fileList)
+                        images{f}=fullfile(glmSessDir{ss},subj_name{s},fileList{f});
+                    end;
+                    metric_out = fullfile(caretSDir,sprintf('%s_psc_sess%d.metric',subj_name{s},ss));
+                    M=caret_vol2surf_own(C1.data,C2.data,images,'ignore_zeros',1);
+                    M.column_name = column_name;
+                    caret_save(metric_out,M);
+                    if smooth == 1;
+                        % Smooth output .metric file (optional)
+                        % Load .topo file
+                        cd(caretSDir);
+                        closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
+                        Out = caret_smooth(metric_out, 'coord', white, 'topo', closed);%,...
+                        %'algorithm','FWHM','fwhm',12);
+                        char(Out);  % if smoothed adds an 's'
+                    end;
+                    fprintf('Sess %d, Subj %d, Hem %d\n',ss,s,h);
+                end; % hemi
+            end; % sn
+        end; % session
+    case 'SURF_diff'                                                 % STEP 4.4a   :  Map searchlight results (.nii) onto surface (.metric)
+        % map volume images to metric file and save them in individual surface folder
+        sn      = [5:9,11:31];
+        sessN   = [1:4];   
+        fileList = {'dist','dist_trained','dist_untrained','dist_cross'}; % for dist or repsup
+        glmDir = glmSessDir;
+        outname = 'dist'; % dist or dist_repsup
+        smooth = 1;
+        vararginoptions(varargin,{'sn','sessN','fileList','glmDir','outname'});
+        
+        for ss = sessN
+            for s = sn
+                for h=1:2
+                    caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
+                    white     = caret_load(fullfile(caretSDir,[hem{h} '.WHITE.coord']));
+                    pial      = caret_load(fullfile(caretSDir,[hem{h} '.PIAL.coord']));
+                    
+                    for f = 1:length(fileList)
+                        images{f}    = fullfile(glmDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,fileList{f}));
+                        column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,fileList{f}));
+                    end;    % filename
+                    outfile   = sprintf('%s_%s_sess%d.metric',subj_name{s},outname,ss);
+                    M         = caret_vol2surf_own(white.data,pial.data,images,'ignore_zeros',1);
+                    M.column_name = column_name;
+                    caret_save(fullfile(caretSDir,outfile),M);
+                    if smooth == 1;
+                        % Smooth output .metric file (optional)
+                        % Load .topo file
+                        closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
+                        white = fullfile(caretSDir,[hem{h} '.WHITE.coord']);
+                        Out = caret_smooth(fullfile(caretSDir,outfile), 'coord',white,'topo',closed);%,...
+                        %'algorithm','FWHM','fwhm',12);
+                        char(Out);  % if smoothed adds an 's'
+                    end;
+                    fprintf('Done subj %d sess %d hemi %d \n',s,ss,h);
+                end;    % hemi
+            end;    % subj
+        end; % sessN
+    case 'SURF_seqDiff'
+        % trained - untrained difference per session
+        metric = 'dist';
+        sn = [5:9,11:31];
+        sessN = 1:4;
+        smooth = 1;
+        vararginoptions(varargin,{'dist','smooth','metric','sn'});
+        switch metric
+            case 'dist'
+                  col = [2,3];
+            case 'psc'
+                  col = [14,15];
+        end
+        for s=sn
+            for h=1:2 % hemi
+                caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
+                for ss=sessN
+                    M = caret_load(fullfile(caretSDir,sprintf('%s_%s_sess%d.metric',subj_name{s},metric,ss)));
+                    data(:,1) = M.data(:,col(1))-M.data(:,col(2));
+                    column_name{1} = sprintf('%s_sess%d',metric,ss);
+                    C = caret_struct('metric','data',data,'column_name',column_name);
+                    fileName = sprintf('s%s_%s_seqDiff_sess%d.metric',subj_name{s},metric,ss);
+                    caret_save(fullfile(caretSDir,fileName),C);
+                    if smooth == 1;
+                        % Smooth output .metric file (optional)
+                        % Load .topo file
+                        white=fullfile(caretSDir,[hem{h} '.WHITE.coord']);
+                        closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
+                        Out = caret_smooth(fullfile(caretSDir,fileName), 'coord', white, 'topo', closed);%,...
+                        %'algorithm','FWHM','fwhm',12);
+                        char(Out);  % if smoothed adds an 's'
+                    end;
+                    clear data;
+                end; % sess
+            end; % hemi
+            fprintf('Subj %d\n',s);
+        end; % sn
+    case 'SURF_sessDiff'
+        % differences across sessions
+        metric = 'dist';
+        sn = [5:9,11:31];
+        smooth = 1;
+        vararginoptions(varargin,{'smooth','metric'});
+        switch metric
+            case 'dist'
+                  col = [2,3];
+            case 'psc'
+                  col = [14,15];
+        end
+        colName = {'trained','untrained'};
+        for s=sn
+            for h=1:2 % hemi
+                caretSDir = fullfile(caretDir,['x',subj_name{s}],hemName{h});
+                for ss=1:3
+                    M1 = caret_load(fullfile(caretSDir,sprintf('s%s_%s_sess%d.metric',subj_name{s},metric,ss)));
+                    M2 = caret_load(fullfile(caretSDir,sprintf('s%s_%s_sess%d.metric',subj_name{s},metric,ss+1)));
+                    for i=1:size(col,2)
+                        data(:,i) = M2.data(:,col(i))-M1.data(:,col(i));
+                        column_name{i} = sprintf('%s_%s_sessDiff',metric,colName{i});
+                    end                    
+                    C = caret_struct('metric','data',data,'column_name',column_name);
+                    fileName = sprintf('%s_%s_sessDiff_sess%d.metric',subj_name{s},metric,ss);
+                    caret_save(fullfile(caretSDir,fileName),C);
+                    if smooth == 1;
+                        % Smooth output .metric file (optional)
+                        % Load .topo file
+                        white=fullfile(caretSDir,[hem{h} '.WHITE.coord']);
+                        closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
+                        Out = caret_smooth(fullfile(caretSDir,fileName), 'coord', white, 'topo', closed);
+                        char(Out);  % if smoothed adds an 's'
+                    end;
+                    clear data;
+                end; % sess
+            end; % hemi
+            fprintf('Subj %d\n',s);
+        end; % sn
+    case 'SURF_groupMake'
+        % Calculate group metric files 
+        sessN=1:4;
+        sn=[5:9,11:31];
+        name = 'dist'; % psc / dist / psc_seqDiff / dist_seqDiff
+        inputcol   = [1 2 3 4]; % [13,14,15] for psc
+        replaceNaN = [1 1 1 1];
+        smooth = 1;
+        OUTname    = {'dist_all','dist_trained','dist_untrained','dist_cross'}; 
+        %psc: {'psc_all','psc_trained','psc_untrained'}
+        %psc_seqDiff: psc_seqDiff
+        %dist_seqDiff: dist_seqDiff
+        %psc_sessDif: {'psc_trained_sessDiff','psc_untrained_sessDiff'}
+        vararginoptions(varargin,{'sessN','sn','name','OUTname','inputcol','replaceNaN'});
+        
+        % Loop over hemispheres.
+        for h = 1:2
+            % Go to the directory where the group surface atlas resides
+            surfaceGroupDir = [caretDir filesep atlasname filesep hemName{h}];
+            cd(surfaceGroupDir);
+            for ss=sessN
+                % Loop over each input metric file in 'OUTname' and make a group metric file
+                for j = 1:length(OUTname);
+                    % Loop over subjects...
+                    for i = 1:length(sn);
+                        % ...and define the names of their metric files
+                        switch smooth
+                            case 0
+                                infilenames{j}{i} = fullfile(caretDir,[atlasA subj_name{sn(i)}], hemName{h}, sprintf('%s_%s_sess%d.metric',subj_name{sn(i)},name,ss));
+                            case 1
+                                infilenames{j}{i} = fullfile(caretDir,[atlasA subj_name{sn(i)}], hemName{h}, sprintf('s%s_%s_sess%d.metric',subj_name{sn(i)},name,ss));
+                        end
+                        % Name the output filename for this group metric file in average surface folder
+                    end;
+                    switch smooth
+                        case 0
+                            outfilenames{j} = [surfaceGroupDir filesep hem{h} '.' OUTname{j} '_sess' num2str(ss) '.metric'];
+                        case 1
+                            outfilenames{j} = [surfaceGroupDir filesep 's' hem{h} '.' OUTname{j} '_sess' num2str(ss) '.metric'];
+                    end
+                    % Finally, make the group metric file for this metric type/contrast
+                    caret_metricpermute(infilenames{j},'outfilenames',outfilenames(j),'inputcol',inputcol(j),'replaceNaNs',replaceNaN(j));
+                    % Verbose display to user
+                    fprintf('sess: %d  hem: %i  image: %i \n',ss,h,j);
+                end;
+            end
+        end;
+    case 'SURF_group_cSPM'
+        % Calculate group stats files from the group metric files. 
+        sessN=1:4;
+        sn=[5:9,11:31];
+        name={'dist_all','dist_trained','dist_untrained','dist_cross'};
+        %{'psc_all','psc_trained','psc_untrained'} {'psc_seqDiff'},{'dist_seqDiff'},{'psc_sessDiff_trained','psc_sessDiff_untrained'}
+        metric='dist'; % psc / dist / psc_seqDiff / dist_seqDiff
+        sqrtTransform=[1,1,1,1]; % Should you take ssqrt before submitting? for distances
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric'});
+        s=1:length(sn);
+        hemi = [1 2];
+        for ss=sessN
+            SummaryName = sprintf('.summary_%s_sess%d.metric',metric,ss);
+            for h=hemi
+                surfaceGroupDir=[caretDir filesep 'fsaverage_sym'  filesep hemName{h}];
+                %----get the full directory name of the metric files and the NONsmoothed metric files that we create below
+                for i=1:length(name);
+                    %sfilenames{i}=[surfaceGroupDir filesep 's' hem{h} '.' name{i} '.metric']; % smoothed
+                    sfilenames{i}=[surfaceGroupDir filesep 's' hem{h} '.' name{i} '_sess' num2str(ss) '.metric']; % smoothed maps
+                    %sfilenames{i}=[surfaceGroupDir filesep hem{h} '.' SPMname{i} '_sess' num2str(ss) '.metric']; % no smoothing
+                end;
+                %----loop over the metric files and calculate the cSPM of each with the non-smoothed metrics
+                for i=1:length(name);
+                    Data=caret_load(sfilenames{i});
+                    if sqrtTransform(i)
+                        Data.data=ssqrt(Data.data);
+                    end;
+                    SPMname{i} = sprintf('%s_sess%d',name{i},ss);
+                    cSPM=caret_getcSPM('onesample_t','data',Data.data(:,s),'maskthreshold',0.7); % set maskthreshold to 0.5 = calculate stats at location if 50% of subjects have data at this point
+                    caret_savecSPM([surfaceGroupDir filesep hem{h} '.' SPMname{i} '_stats.metric'],cSPM);
+                    save([surfaceGroupDir  filesep   'cSPM_' SPMname{i} '.mat'],'cSPM');
+                    data(:,i)=cSPM.con(1).con; % mean
+                    data(:,i+length(name))=cSPM.con(1).Z; % T
+                    column_name{i}=['mean_' SPMname{i} '_sess' num2str(ss)];
+                    column_name{i+length(name)}=['T_' SPMname{i} '_sess' num2str(ss)];
+                end;
+                C = caret_struct('metric','data',data,'column_name',column_name);
+                caret_save([surfaceGroupDir  filesep hem{h} SummaryName],C);
+            end;
+        end
+        fprintf('Done \n');
+    case 'SURF_group_list'
+         % TabDat=caret_list(Surface,cSPM,u,k,varargin);
+        hemi        = 1;
+        cSPMname    = 'cSPM_psc_seqDiff_sess2.mat';
+        cSPMdir     = caretDir;
+        th_hight    = 0.01; % p-val
+        th_size     = 1;% cluster size mm^2 or corrected p-value
+        vararginoptions(varargin,{'cSPMname','th_hight','th_size','cSPMdir'});
+        for h=hemi
+            if strcmp(cSPMdir,caretDir)
+                surfaceGroupDir=[cSPMdir filesep 'fsaverage_sym' filesep hemName{h}];
+            else
+                surfaceGroupDir = cSPMdir; % for permutations
+            end
+            %---- define name of coord and topology
+            coordfile   = [caretDir filesep 'fsaverage_sym' filesep hemName{h} filesep hem{h} '.WHITE.coord'];
+            topofile    = [caretDir filesep 'fsaverage_sym' filesep hemName{h} filesep hem{h} '.CLOSED.topo'];        
+            %---- get surface
+            surface = caret_getsurface(coordfile,topofile);  
+            %---- load reference .paint file
+            P = caret_load(fullfile(caretDir,'fsaverage_sym',hemName{h},'ROI.paint'));      
+            %---- load cSPM
+            cSPMfile = fullfile(surfaceGroupDir,cSPMname);
+            load(cSPMfile);         
+            %---- get table
+            table = caret_list(surface,cSPM,th_hight,th_size,'label',P,'mask',P.data>0,'sort_by','area');
+            varargout{1} = table;
+        end;
+    case 'SURF_permute_stats'
+        % implementing permutation tests for assessing statistical
+        % significance of detected clusters
+        sessN=1:4;
+        sn=[5:9,11:31];
+        nPerm = 1000;
+        name={'dist_all','dist_trained','dist_untrained','dist_cross'};
+        %{'psc_all','psc_trained','psc_untrained'} {'psc_seqDiff'},{'dist_seqDiff'},{'psc_sessDiff_trained','psc_sessDiff_untrained'}
+        metric='dist'; % psc / dist / psc_seqDiff / dist_seqDiff
+        sqrtTransform=[1,1,1,1]; % Should you take ssqrt before submitting? for distances
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','nPerm'});
+        s=1:length(sn);
+        hemi = 1;
+        % load permutations
+        load(fullfile(caretDir,'PermComb'));       
+        perm = randi(size(PermComb,1),1,1000); % choose at random
+        PermComb = PermComb(perm,:); % here subset of permutations - randomly picked
+        fprintf('Running permutations for %s.',metric);
+        for ss=sessN
+            fprintf('\nSession-%d:\n');
+            for h=hemi
+                surfaceGroupDir=[caretDir filesep 'fsaverage_sym'  filesep hemName{h}];
+                permDir = fullfile(surfaceGroupDir,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                dircheck(permDir);
+                %----get the full directory name of the metric files and the NONsmoothed metric files that we create below
+                for i=1:length(name)
+                    sfilenames{i}=[surfaceGroupDir filesep 's' hem{h} '.' name{i} '_sess' num2str(ss) '.metric']; % smoothed maps
+                    Data(i)=caret_load(sfilenames{i});
+                    if sqrtTransform(i)
+                        Data(i).data=ssqrt(Data(i).data);
+                    end;
+                end
+                for i=1:length(name);
+                    for p=1:nPerm
+                        tElapsed = tic;
+                        %----loop over the metric files and calculate the cSPM for each permuted file
+                        permData = bsxfun(@times,Data(i).data(:,s),PermComb(p,:));
+                        SPMname = sprintf('%s_sess%d_perm-%d',name{i},ss,p);
+                        cSPM=caret_getcSPM('onesample_t','data',permData,'maskthreshold',0.7); % set maskthreshold to 0.5 = calculate stats at location if 50% of subjects have data at this point
+                        save([permDir  filesep   'cSPM_' SPMname '.mat'],'cSPM');
+                        table = sml1_imana_dist('SURF_group_list','cSPMname',sprintf('cSPM_%s.mat',SPMname),'cSPMdir',permDir);
+                        save(fullfile(permDir,sprintf('table_permutation-%d.mat',p)),'-struct','table')
+                        fprintf('%d.',p); toc(tElapsed);
+                    end;
+                end;
+            end
+        end
+        fprintf('Done \n');
+    case 'SURF_permute'
+        % here calculate many possible permutations for flipping
+        nSubj = 26;
+        Comb = [];
+        randRow = randi(nSubj-1,1,10);
+        for i=1:randRow
+            A=nchoosek([1:nSubj],i);
+            n=size(A,1);
+            X=zeros(n,nSubj);
+            for j=1:n
+                X(j,A(j,:))=1;
+            end;
+            Comb=[Comb;X];
+        end;
+        Comb(Comb==0)=-1;
+        PermComb = Comb;
+        save(fullfile(caretDir,'PermComb'),'-v7.3');
+    case 'SURF_wb:permute_stats'
+        sessN=1:4;
+        nPerm = 1000;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='dist'; % psc / dist 
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','nPerm'});
+        INname = sprintf('%sDifference',metric);
+        hemi = 1;
+        if strcmp(metric,'dist')
+            kernel=1;
+        else
+            kernel=2;
+        end
+        % load permutations
+        load(fullfile(caretDir,'PermComb'));       
+        perm = randi(size(PermComb,1),1,1000); % choose at random
+        PermComb = PermComb(perm,:); % here subset of permutations - randomly picked
+        fprintf('Running permutations for %s.',metric);
+        for ss=sessN
+            fprintf('\nSession-%d:\n',ss);
+            for h=hemi
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                dircheck(permDir);
+                inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname,ss));
+                G1 = gifti(inFile);
+                for p=623:nPerm %p=1:nPerm 
+                    tElapsed = tic;
+                    %----loop over the metric files and calculate the cSPM for each permuted file
+                    permData = bsxfun(@times,G1.cdata,PermComb(p,:));
+                    cSPM = surf_getcSPM('onesample_t','data',permData,'maskthreshold',0.7);
+                    SPMname = sprintf('%s_sess%d_perm-%d',INname,ss,p);
+                    save(fullfile(permDir,sprintf('cSPM_%s.mat',SPMname)),'cSPM');
+                    % here map
+                    data(:,1)=cSPM.con(1).Z; % T
+                    column_name(1)={'T_map'};
+                    G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+                    summaryName = fullfile(permDir,sprintf('map_perm-%d.func.gii',p));
+                    save(G2,summaryName);
+                    % here smooth
+                    surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+                    surf_smooth(summaryName,'surf',surfFile,'kernel',kernel);
+                    smoothName = fullfile(permDir,sprintf('smap_perm-%d.func.gii',p));
+                    % here find clusters
+%                     clustName = fullfile(permDir,sprintf('clusters_perm-%d_thres1.func.gii',p));
+%                     comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.3,3,clustName);
+%                     % 1.7 - T corresponding to p<0.05,one -sided
+%                     [err,out]=system(comm);
+%                     clustName = fullfile(permDir,sprintf('clusters_perm-%d_thres2.func.gii',p));
+%                     comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.7,3,clustName);
+%                     % 1.7 - T corresponding to p<0.05,two-sided
+%                     [err,out]=system(comm);
+                    clustName = fullfile(permDir,sprintf('clusters_perm-%d_thres3.func.gii',p));
+                    comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,2.49,3,clustName);
+                    % 2.49 - T corresponding to p<0.01
+                    [err,out]=system(comm);
+                    fprintf('%d.',p); toc(tElapsed);
+                end;
+            end
+        end
+        fprintf('Done \n');
+    case 'SURF_wb:non-permuted'
+        % same procedure but no permutation
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='dist'; % psc / dist 
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','nPerm'});
+        INname = sprintf('%sDifference',metric);
+        hemi = 1;
+        if strcmp(metric,'dist')
+            kernel=1;
+        else
+            kernel=2;
+        end
+        fprintf('Running permutations for %s.',metric);
+        for ss=sessN
+            fprintf('\nSession-%d:\n',ss);
+            for h=hemi
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                dircheck(permDir);
+                inFile = fullfile(surfaceGroupDir,sprintf('%s.%s.sess-%d.func.gii',hemI{h},INname,ss));
+                G1 = gifti(inFile);
+                
+                permData = G1.cdata;
+                cSPM = surf_getcSPM('onesample_t','data',permData,'maskthreshold',0.7);
+                SPMname = sprintf('%s_sess%d_non-permuted',INname,ss);
+                save(fullfile(permDir,sprintf('cSPM_%s.mat',SPMname)),'cSPM');
+                % here map
+                data(:,1)=cSPM.con(1).Z; % T
+                column_name(1)={'T_map'};
+                G2 = surf_makeFuncGifti(data,'anatomicalStruct',hemname{h},'columnNames',column_name);
+                summaryName = fullfile(permDir,sprintf('map_non-permuted.func.gii'));
+                save(G2,summaryName);
+                % here smooth
+                surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+                surf_smooth(summaryName,'surf',surfFile,'kernel',kernel);
+                smoothName = fullfile(permDir,sprintf('smap_non-permuted.func.gii'));
+                % here find clusters
+                clustName = fullfile(permDir,sprintf('clusters_non-permuted_thres1.func.gii'));
+                comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.3,2,clustName);
+                % 1.3 - T corresponding to p<0.05, one-sided
+                [err,out]=system(comm);
+                clustName = fullfile(permDir,sprintf('clusters_non-permuted_thres2.func.gii'));
+                comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.7,2,clustName);
+                % 1.3 - T corresponding to p<0.05, two-sided
+                [err,out]=system(comm);
+                clustName = fullfile(permDir,sprintf('clusters_non-permuted_thres3.func.gii'));
+                comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,2.49,2,clustName);
+                % 2.49 - T corresponding to p<0.01
+                [err,out]=system(comm);
+            end
+        end
+        fprintf('Done \n');
+    case 'SURF_wb:non-permuted_clusters'
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='dist'; % psc / dist 
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','nPerm'});
+        hemi = 1;
+        for ss=sessN
+            for h=hemi
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                for i=1:2
+                    if i==1
+                        smoothName = fullfile(permDir,sprintf('smap_non-permuted.func.gii'));
+                        name = 'non-permuted';
+                    else
+                        S = gifti(fullfile(permDir,sprintf('smap_non-permuted.func.gii')));
+                        column_name(1)={'T_map_reversed'};
+                        G = surf_makeFuncGifti(S.cdata.*(-1),'anatomicalStruct',hemname{h},'columnNames',column_name);
+                        smoothName = fullfile(permDir,sprintf('map_non-permuted_reversed.func.gii'));
+                        save(G,smoothName);
+                        name = 'non-permuted_reversed';
+                    end
+                    % here find clusters
+                    clustName = fullfile(permDir,sprintf('clusters_%s_thres1.func.gii',name));
+                    comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.3,2,clustName);
+                    % 1.3 - T corresponding to p<0.05, one-sided
+                    [err,out]=system(comm);
+                    clustName = fullfile(permDir,sprintf('clusters_%s_thres2.func.gii',name));
+                    comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.7,2,clustName);
+                    % 1.3 - T corresponding to p<0.05, two-sided
+                    [err,out]=system(comm);
+                    clustName = fullfile(permDir,sprintf('clusters_%s_thres3.func.gii',name));
+                    comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,2.49,2,clustName);
+                    % 2.49 - T corresponding to p<0.01
+                    [err,out]=system(comm);
+                end
+            end
+            fprintf('Session-%d.\n',ss);
+        end
+    case 'SURF_wb:permuted_clusters'
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='dist'; % psc / dist 
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','nPerm'});
+        hemi = 1;
+        for ss=sessN
+            fprintf('\nSession-%d.\n',ss);
+            for h=hemi
+                surfaceGroupDir = fullfile(wbDir,atlas);
+                surfFile = fullfile(surfaceGroupDir,sprintf('fs_LR.164k.%s.inflated.surf.gii',hemI{h}));
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                for p=1:1000 % permutations
+                    for i=1:2
+                        if i==1
+                            smoothName = fullfile(permDir,sprintf('smap_perm-%d.func.gii',p));
+                            name = sprintf('perm-%d',p);
+                        else
+                            S = gifti(fullfile(permDir,sprintf('smap_perm-%d.func.gii',p)));
+                            column_name(1)={'T_map_reversed'};
+                            G = surf_makeFuncGifti(S.cdata.*(-1),'anatomicalStruct',hemname{h},'columnNames',column_name);
+                            smoothName = fullfile(permDir,sprintf('smap_perm-%d_reversed.func.gii',p));
+                            save(G,smoothName);
+                            name = sprintf('perm-%d_reversed',p);
+                        end
+                        % here find clusters
+                        if strcmp(metric,'dist')
+                         %   clustName = fullfile(permDir,sprintf('clusters_%s_thres1.func.gii',name));
+                         %   comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.3,.5,clustName);
+                            % 1.3 - T corresponding to p<0.05, one-sided
+                         %   [err,out]=system(comm);
+                            clustName = fullfile(permDir,sprintf('clusters_%s_thres2.func.gii',name));
+                            comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,1.7,2,clustName); % 2 / 0.5
+                            % 1.7 - T corresponding to p<0.05, two-sided
+                            [err,out]=system(comm);
+                        end
+                        clustName = fullfile(permDir,sprintf('clusters_%s_thres3.func.gii',name)); % for psc only the most stringent
+                        comm = sprintf('wb_command -metric-find-clusters %s %s %d %d %s',surfFile,smoothName,2.49,2,clustName); % 2 / 0.5
+                        % 2.49 - T corresponding to p<0.01
+                        [err,out]=system(comm);
+                    end
+                    fprintf('%d.',p);
+                end
+            end
+        end
+    case 'SURF_wb:cluster_size_T'
+        % here determine the size and peak T value for clusters
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        thres = 3;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        hemi = 1;
+        TT = [];
+        for ss=sessN
+            for h=hemi
+                G = gifti(fullfile(wbDir,atlas,'fs_LR.164k.coord.func.gii')); % for left hemisphere only
+                S = gifti(fullfile(wbDir,atlas,'fs_LR.164k.surfArea.func.gii')); % for left hemisphere only - surface area
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                for i=1:2
+                    if i==1
+                        mapName = fullfile(permDir,sprintf('smap_non-permuted.func.gii'));
+                        name = 'non-permuted';
+                    else
+                        mapName = fullfile(permDir,sprintf('map_non-permuted_reversed.func.gii'));
+                        name = 'non-permuted_reversed';
+                    end
+                    fprintf('%s:\n\n',name)
+                    M = gifti(mapName);
+                    C = gifti(fullfile(permDir,sprintf('clusters_%s_thres%d.func.gii',name,thres)));
+                    for c=1:max(unique(C.cdata))
+                        fprintf('Cluster-%d.\n',c);
+                        ind = C.cdata==c;
+                        coord = double(G.cdata(ind,:));
+                        shp = alphaShape(coord);
+                        % here determine the shape
+                        T.maxT = max(M.cdata(C.cdata==c));
+                        T.numNodes = numel(M.cdata(C.cdata==c));
+                        T.surfArea = sum(S.cdata(C.cdata==cc));
+                        T.volume = volume(shp);
+                        T.cluster = c;
+                        T.positive_negative = i;
+                        T.sessN = ss;
+                        TT = addstruct(TT,T);
+                    end
+                end
+            end
+            fprintf('Session-%d done.\n',ss);
+        end
+        save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d',thres)),'-struct','TT');
+    case 'SURF_wb:permutation_histogramT'
+        % determine the distribution of Ts (+ / -) per session
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        hemi = 1;
+        for ss=sessN
+            fprintf('\nSession-%d:\n',ss);
+            for h=hemi
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                T_hist = zeros(2,1000);
+                for p=1:1000
+                    G = gifti(fullfile(permDir,sprintf('smap_perm-%d.func.gii',p)));
+                    T_hist(1,p) = max(G.cdata);
+                    T_hist(2,p) = min(G.cdata);
+                    fprintf('%d.',p);
+                end
+                fprintf('...done.\n');
+            end
+            save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('T_perm_distribution_sess-%d',ss)),'T_hist');
+        end
+    case 'SURF_wb:permutation_histogram_clusterSize'
+        % determine the distribution of cluster sizes (+ / -) per session
+        sessN=1:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        thres = 3;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        hemi = 1;
+        for ss=sessN
+            fprintf('\nSession-%d:\n',ss);
+            for h=hemi
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                nNode = cell(2,1);
+                for p=1:1000
+                    for i=1:2 % positive and negative
+                        if i==1
+                            name = sprintf('perm-%d',p);
+                        else
+                            name = sprintf('perm-%d_reversed',p);
+                        end
+                        clustName = fullfile(permDir,sprintf('clusters_%s_thres%d.func.gii',name,thres));
+                        G = gifti(clustName);
+                        if numel(unique(G.cdata))~=1
+                            for c=1:max(unique(G.cdata))
+                                nNode{i} = [nNode{i},numel(find(G.cdata==c))];
+                            end
+                        end
+                    end
+                    fprintf('%d.',p);
+                end
+                fprintf('...done.\n');
+            end
+            save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterSize_distribution_thres-%d_sess-%d',thres,ss)),'nNode');
+        end
+    case 'SURF_wb:permutation_histogram_clusterSize_v2'
+        % determine the distribution of cluster sizes (+ / -) per session
+        % only take the largest cluster
+        sessN=2:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        thres = 3;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        hemi = 1;
+        for ss=sessN
+            fprintf('\nSession-%d:\n',ss);
+            for h=hemi
+                permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+                nNode = cell(2,1);
+                for p=1:1000
+                    for i=1:2 % positive and negative
+                        if i==1
+                            name = sprintf('perm-%d',p);
+                        else
+                            name = sprintf('perm-%d_reversed',p);
+                        end
+                        clustName = fullfile(permDir,sprintf('clusters_%s_thres%d.func.gii',name,thres));
+                        G = gifti(clustName);
+                        if numel(unique(G.cdata))~=1
+                            nNode_perm = zeros(max(unique(G.cdata)),1);
+                            for c=1:max(unique(G.cdata))
+                                nNode_perm(c) = numel(find(G.cdata==c));
+                            end
+                        else
+                            nNode_perm = 0;
+                        end
+                        nNode{i} = [nNode{i} max(nNode_perm)];
+                    end
+                    fprintf('%d.',p);
+                end
+                fprintf('...done.\n');
+            end
+            save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterSize_distribution_thres-%d_sess-%d_v2',thres,ss)),'nNode');
+        end
+    case 'SURF_wb:determine_T_significance'
+        % determine significance of clusters
+        sessN=2:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        thres = 3;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        PP=[];
+        T = load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d.mat',thres)));
+        for ss=sessN
+            load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('T_perm_distribution_sess-%d.mat',ss))); % T_perm distribution
+            for i=1:2 % positive_negative
+                T1 = getrow(T,T.sessN==ss & T.positive_negative==i);
+                for c=1:size(T1.cluster,1)
+                    P = getrow(T1,T1.cluster==c);
+                    P.T_p_unc = tpdf(P.maxT,25); % 25 degrees of freedom
+                    P.T_p_corr = sum(numel(find(abs(T_hist(i,:))>P.maxT)))/1000;
+                    PP = addstruct(PP,P);
+                end
+            end
+        end
+        save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d_T_p',thres)),'-struct','PP');
+    case 'SURF_wb:determine_clusterSize_significance'
+        % determine significance of size of clusters
+        sessN=2:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist 
+        thres = 3;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        PP=[];
+        T = load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d_T_p.mat',thres)));
+        for ss=sessN
+           % load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterSize_distribution_thres-%d_sess-%d_v2.mat',thres,ss))); % T_perm distribution
+            load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterSize_distribution_thres-%d_sess-%d.mat',thres,ss))); % T_perm distribution
+            for i=1:2 % positive_negative
+                T1 = getrow(T,T.sessN==ss & T.positive_negative==i);
+                for c=1:size(T1.cluster,1)
+                    P = getrow(T1,T1.cluster==c);
+                    P.clustSize_p_corr = sum(numel(find(nNode{i}>P.numNodes)))/size(nNode{1},2);
+                    PP = addstruct(PP,P);
+                end
+            end
+        end
+        save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d_T_p_clusterSize_v2',thres)),'-struct','PP');
+    case 'SURF_wb:add_surfaceArea'
+        sessN=2:4;
+        atlas = 'FS_LR_164'; % 164 or 42
+        metric='psc'; % psc / dist
+        thres = 3;
+        hemi = 1;
+        vararginoptions(varargin,{'sessN','sn','sqrtTransform','SPMname','name','metric','thres'});
+        
+        T = load(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d_T_p_clusterSize.mat',thres)));
+        S = fullfile(wbDir,atlas,'fs_LR.164k.L.inflated.surf.gii');
+        S2 = fullfile(wbDir,atlas,'fs_LR.164k.L.surfArea.func.gii');
+        comm = sprintf('wb_command -surface-vertex-areas %s %s',S,S2);
+        [err,out]=system(comm);
+        PP = [];
+        for ss=sessN
+            permDir = fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('sess-%d',ss));
+            for h=hemi
+                S = gifti(S2); % for left hemisphere only - surface area
+                for i=1:2 % positive_negative
+                    T1 = getrow(T,T.sessN==ss & T.positive_negative==i);
+                    if i==1
+                        name = 'non-permuted';
+                    else
+                        name = 'non-permuted_reversed';
+                    end
+                    C = gifti(fullfile(permDir,sprintf('clusters_%s_thres%d.func.gii',name,thres)));
+                    for c=1:size(T1.cluster,1)
+                        P = getrow(T1,T1.cluster==c);
+                        P.surfArea = sum(S.cdata(C.cdata==c));
+                        PP = addstruct(PP,P);
+                    end
+                end
+            end
+        end
+        save(fullfile(wbDir,atlas,sprintf('permutation_%s',metric),sprintf('clusterData_thres-%d_T_p_clusterSize.mat',thres)),'-struct','PP');
+
     case 'SEARCH_all'
         vararginoptions(varargin,{'sn','sessN'});
         if sessN == 1
@@ -577,11 +1344,12 @@ switch(what)
         cd(cWD);  % return to working directory
     case 'SEARCH_dist_surf'                                                 % STEP 4.4a   :  Map searchlight results (.nii) onto surface (.metric)
         % map volume images to metric file and save them in individual surface folder
-        sn      = [4:9,11:31];
+        sn      = [5:9,11:31];
         sessN   = [1:4];   
         fileList = {'dist','dist_trained','dist_untrained','dist_cross'}; % for dist or repsup
         glmDir = glmSessDir;
         outname = 'dist'; % dist or dist_repsup
+        smooth = 1;
         vararginoptions(varargin,{'sn','sessN','fileList','glmDir','outname'});
         
         for ss = sessN
@@ -595,15 +1363,24 @@ switch(what)
                         images{f}    = fullfile(glmDir{ss},subj_name{s},sprintf('%s_sess%d_%s.nii',subj_name{s},ss,fileList{f}));
                         column_name{f} = fullfile(sprintf('Sess%d_%s.nii',ss,fileList{f}));
                     end;    % filename
-                    outfile   = sprintf('%s_sess%d_%s.metric',subj_name{s},ss,outname);
+                    outfile   = sprintf('%s_%s_sess%d.metric',subj_name{s},outname,ss);
                     M         = caret_vol2surf_own(white.data,pial.data,images,'ignore_zeros',1);
                     M.column_name = column_name;
                     caret_save(fullfile(caretSDir,outfile),M);
+                    if smooth == 1;
+                        % Smooth output .metric file (optional)
+                        % Load .topo file
+                        closed = fullfile(caretSDir,[hem{h} '.CLOSED.topo']);
+                        white = fullfile(caretSDir,[hem{h} '.WHITE.coord']);
+                        Out = caret_smooth(fullfile(caretSDir,outfile), 'coord',white,'topo',closed);%,...
+                        %'algorithm','FWHM','fwhm',12);
+                        char(Out);  % if smoothed adds an 's'
+                    end;
                     fprintf('Done subj %d sess %d hemi %d \n',s,ss,h);
                 end;    % hemi
             end;    % subj
         end; % sessN
-    case 'SEARCH_group_make'                                                % STEP 4.5   :  Make group metric files by condensing subjec contrast metric files
+    case 'SEARCH_group_make'                                                % depreciated STEP 4.5   :  Make group metric files by condensing subjec contrast metric files
         % Calculate group metric files from the searchlight results. 
         % Takes the 4 contrast results ('dist','dist_trained','dist_untrained','dist_cross') across
         % subjects and makes a group level metric file that contains each

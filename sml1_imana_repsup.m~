@@ -119,7 +119,7 @@ styRS = style.custom({gray,silver,lightgray});
 styRSbeh = style.custom({red,lightred,blue,lightblue},'markersize',ms);
 sty_exe1 = style.custom({red,blue},'markersize',ms);
 sty_exe2 = style.custom({lightred,lightblue},'markersize',ms);
-stySeqShade = style.custom({'red','blue'},'errorbars','shade','markertype','.');
+
 
 %% --------------------------------------- Analysis Cases -----------------------------------------------
 switch(what)
@@ -4544,7 +4544,6 @@ switch(what)
         withinCov(4,4,2) = 1;
         withinCov(5,5,3) = 1;
         withinCov(6,6,3) = 1;
-        AllSess=[];
         for c=1:length(corrS)
             M{c} = pcm_buildCorrModel('type','nonlinear','withinCov',withinCov,'numCond',2,'numItems',6,'r',corrS(c));
         end
@@ -4594,7 +4593,7 @@ switch(what)
                 end; % seqType
                 fprintf('Done reg %d/%d:\t \tsess: %d\n\n',r,numel(reg),ss);
             end; % region
-            save(fullfile(repSupDir,sprintf('PCM_corrModels_firstFing_%s_nonlinear_session-%d.mat',parcelType,ss)),'-struct','AllReg');
+            save(fullfile(repSupDir,sprintf('PCM_corrModels_%s_nonlinear_session-%d.mat',parcelType,ss)),'-struct','AllReg');
             fprintf('Done all:\tsess: %d-%d\n\n\n\n',ss);
             AllSess = addstruct(AllSess,AllReg);
         end; % session
@@ -4695,67 +4694,59 @@ switch(what)
          modelType = 'nonlinear_individual';
         % for nonlinear models: nonlinear_indiviudal / nonlinear_individual, nonlinear_meanPattern
         parcelType = 'Brodmann';
-        reg = [2,3,7];
+        reg = 1:8;
         hemi = 1;
-        sessN = 1:4;
         metric = 'bayesEst'; % bayesEst, bayesEst_cross or bayesEst_individ
-        vararginoptions(varargin,{'modelType','parcelType','reg','metric','sessType','sessN'});
+        vararginoptions(varargin,{'modelType','parcelType','reg','metric','sessType'});
         
-       % style.file(fullfile(codeDir,'sml_style.m'));
-      %  style.use('default');
-        T=load(fullfile(repSupDir,sprintf('PCM_corrModels_firstFing_%s_nonlinear.mat',parcelType)));
+        style.file(fullfile(codeDir,'sml_style.m'));
+        style.use('default');
+        T=load(fullfile(repSupDir,sprintf('PCM_corrModelsfirstFing_%s_nonlinear_session-4.mat',parcelType)));
 
-        for ss=sessN
-            for r=reg
-                t = getrow(T,T.regType==r & T.regSide==hemi & T.sessN==ss);
-                t.metric2 = bsxfun(@minus,t.(metric),mean(t.(metric),2));
-                t.metric3 = bsxfun(@minus,t.(metric),max(t.(metric),2));
-                % reshape here
-                nModel      = size(t.(metric),2);
-                D.(metric)  = t.(metric)(:);
-                D.metric2   = t.metric2(:);
-                D.metric3   = t.metric3(:);
-                D.SN        = repmat(t.SN,nModel,1);
-                D.sessN    = repmat(t.sessN,nModel,1);
-                D.seqType   = repmat(t.seqType,nModel,1);
-                D.model     = kron((1:nModel)',ones(size(t.(metric),1),1));
-                figure
-                %    style.use('stySeq')
-                plt.line(D.model,D.metric2,'split',D.seqType,'leg',{'trained','control'},'leglocation','southeast','style',stySeqShade);
-                c = gca;
-                corrTick = linspace(min(c.XTick),max(c.XTick),21);
-                set(gca,'XTickLabel',(-1:.1:1),'XTick',corrTick); hold on; drawline(0,'dir','horz');
-                xlabel('Correlation'); ylabel('log-BF'); title(sprintf('%s - sess%d',regname_cortex{r},ss));
-                %   for ss=1:4
-                %                 subplot(2,2,ss)
-                %                 style.use('SeqShade_small')
-                %                 plt.line(D.model,D.metric2,'split',D.seqType,'subset',D.sessN==ss,'leg',{'trained','control'},'leglocation','southeast');
-                %                 hold on; drawline(0,'dir','horz'); title(sprintf('%s - session %d',regname_cortex{r},ss));
-                %                 c = gca;
-                %                 corrTick = linspace(min(c.XTick),max(c.XTick),21);
-                %                 set(gca,'XTickLabel',(-1:.1:1),'XTick',corrTick);
-                %          %   end
-                %             figure
-                %             subplot(2,2,1)
-                %             style.use('Trained_shade')
-                %             plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN<4&D.seqType==1,'leg',{'sess-1','sess-2','sess-3'},'leglocation','southeast');
-                %             hold on; drawline(0,'dir','horz');
-                %             title(sprintf('%s - trained 1-3',regname_cortex{r}));
-                %             subplot(2,2,3)
-                %             plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN>2&D.seqType==1,'leg',{'sess-3','sess-4'},'leglocation','southeast');
-                %             hold on; drawline(0,'dir','horz');
-                %             title(sprintf('%s - trained 3-4',regname_cortex{r}));
-                %             style.use('Untrained_shade')
-                %             subplot(2,2,2)
-                %             plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN<4&D.seqType==2,'leg',{'sess-1','sess-2','sess-3'},'leglocation','southeast');
-                %             hold on; drawline(0,'dir','horz');
-                %             title(sprintf('%s - untrained 1-3',regname_cortex{r}));
-                %             subplot(2,2,4)
-                %             plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN>2&D.seqType==2,'leg',{'sess-3','sess-4'},'leglocation','southeast');
-                %             hold on; drawline(0,'dir','horz');
-                %             title(sprintf('%s - untrained 3-4',regname_cortex{r}));
-            end
+        for r=reg
+            t = getrow(T,T.regType==r & T.regSide==hemi);
+            t.metric2 = bsxfun(@minus,t.(metric),mean(t.(metric),2));
+            t.metric3 = bsxfun(@minus,t.(metric),max(t.(metric),2));
+            % reshape here
+            nModel      = size(t.(metric),2);
+            D.(metric)  = t.(metric)(:);
+            D.metric2   = t.metric2(:);
+            D.metric3   = t.metric3(:);
+            D.SN        = repmat(t.SN,nModel,1);
+            D.sessN    = repmat(t.sessN,nModel,1);
+            D.seqType   = repmat(t.seqType,nModel,1);
+            D.model     = kron((1:nModel)',ones(size(t.(metric),1),1));       
+            figure
+         %   for ss=1:4
+%                 subplot(2,2,ss)
+%                 style.use('SeqShade_small')
+%                 plt.line(D.model,D.metric2,'split',D.seqType,'subset',D.sessN==ss,'leg',{'trained','control'},'leglocation','southeast');
+%                 hold on; drawline(0,'dir','horz'); title(sprintf('%s - session %d',regname_cortex{r},ss));
+%                 c = gca;
+%                 corrTick = linspace(min(c.XTick),max(c.XTick),21);
+%                 set(gca,'XTickLabel',(-1:.1:1),'XTick',corrTick);
+%          %   end
+            figure
+            subplot(2,2,1)
+            style.use('Trained_shade')
+            plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN<4&D.seqType==1,'leg',{'sess-1','sess-2','sess-3'},'leglocation','southeast');
+            hold on; drawline(0,'dir','horz');
+            title(sprintf('%s - trained 1-3',regname_cortex{r}));
+            subplot(2,2,3)
+            plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN>2&D.seqType==1,'leg',{'sess-3','sess-4'},'leglocation','southeast');
+            hold on; drawline(0,'dir','horz');
+            title(sprintf('%s - trained 3-4',regname_cortex{r}));
+            style.use('Untrained_shade')
+            subplot(2,2,2)
+            plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN<4&D.seqType==2,'leg',{'sess-1','sess-2','sess-3'},'leglocation','southeast');
+            hold on; drawline(0,'dir','horz');
+            title(sprintf('%s - untrained 1-3',regname_cortex{r}));
+            subplot(2,2,4)
+            plt.line(D.model,D.metric2,'split',D.sessN,'subset',D.sessN>2&D.seqType==2,'leg',{'sess-3','sess-4'},'leglocation','southeast');
+            hold on; drawline(0,'dir','horz');
+            title(sprintf('%s - untrained 3-4',regname_cortex{r}));
         end
+        
     case 'PCM_simulate_repsupModels' %---------------------- PCM on CORRELATION 1st-2nd REPETITION - old ----------------
         runEffect  = 'fixed';
         mNum=2; % which model used for data generation - 1: ind, 2: flex, 3: same

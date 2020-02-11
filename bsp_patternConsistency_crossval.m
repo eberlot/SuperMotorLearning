@@ -1,10 +1,10 @@
-function [R2,R]=bsp_patternConsistency_crossval(Y,partition,conditionVec,varargin)
-% function R_cross=rsa_patternConsistency(Y,partition,conditionVec);
-% Caluclates a measure of pattern consistency R2 = SS_between / SS_total
+function [R2,R]=bsp_patternConsistency_crossval(Y,partition,condition,varargin)
+% function R_cross=rsa_patternConsistency(Y,partition,condition,varargin);
+% Calcylates measures of pattern consistency: R2 (SS_between/SS_total) and R (correlation)
 % INPUT:
 %  Y                : Noise-normalized activation patterns, a KR x P matrix
 %  partition        : KR x 1 integer value that indicates the partition for crossvalidation (typically run number), zeros will be ignored
-%  conditionVec     : KR x 1 vector of conditions, zeros will be ignored
+%  condition        : KR x 1 vector of conditions, zeros will be ignored
 %
 % OUTPUT:
 %   R2              : crossvalidated R2 (1-SSR/SST)
@@ -18,14 +18,16 @@ vararginoptions(varargin,{'removeMean'});
 if ~isnan(Y) % if no data provided
     
     part    = unique(partition)';
-    part = part(part~=0)';
+    part    = part(part~=0)';
     numPart = numel(part);
-    numCond = length(unique(conditionVec));
+    cond    = unique(condition)';
+    cond    = cond(cond~=0)';
+    numCond = numel(cond);
     
-    [N,numVox]   = size(Y);
+    [~,numVox]   = size(Y);
     
     A = zeros(numCond,numVox,numPart);
-    X = indicatorMatrix('identity_p',conditionVec);
+    X = indicatorMatrix('identity_p',condition);
     
     % Estimate condition means within each run
     for i=1:numPart
@@ -34,15 +36,14 @@ if ~isnan(Y) % if no data provided
         A(:,:,i) = pinv(Xa)*Ya;
         if (removeMean) % per partition
             A(:,:,i)=bsxfun(@minus,A(:,:,i),sum(A(:,:,i),1)/numCond);
-        end;
-    end;
-    
+        end
+    end
+    Pred = zeros(size(A));
     % prep betas - leave one out manner
     for i=1:numPart
-        testRun      = i;
         trainRun     = part~=i;
         Pred(:,:,i)  = mean(A(:,:,trainRun),3);
-    end; 
+    end 
     SSR      = sum(sum(sum((A-Pred).^2)));
     SST      = sum(sum(sum(A.^2)));
     SSP      = sum(sum(sum(Pred.^2))); 
