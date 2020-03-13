@@ -1,14 +1,14 @@
 function varargout=sml_analyze (what, varargin)
 
 prefix = 'sml1_';
-%baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
-baseDir = '/Volumes/MotorControl/data/SuperMotorLearning';
+baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
+%baseDir = '/Volumes/MotorControl/data/SuperMotorLearning';
 behDir  = fullfile(baseDir,'behavioral_data');
 anaDir  = fullfile(behDir,'analyze');
 memoryDir = fullfile(behDir,'memory');
 subj_name  = {'s01','s02','s03','s04','s05','s06','s07','s08','s09','s10','s11','s12','s13','s14','s15','s16','s17','s18',...
                 's19','s20','s21','s22','s23','s24','s25','s26','s27','s28','s29','s30','s31'};
-cd(behDir)
+%cd(behDir)
 
 % -------------------------- For plotting ---------------------------------
 stySeq=style.custom({'red','blue'},'markersize',12);
@@ -194,15 +194,17 @@ switch what
             drawline(SS.x2_CI_upp(i),'dir','vert');
             drawline(SS.x2_CI_low(i),'dir','vert','color',[1 0 0]);
         end
-    case 'HIST_errors_points_group'            
+    case 'HIST_errors_points_group' 
+        sn = [5:9,11:31];
+        vararginoptions(varargin,{'sn'});
         D=load(fullfile(behDir,'analyze','alldata.mat'));
      
         figure
         subplot(1,2,1) 
-        histogram(D.points(D.blockType==6),'Normalization','probability');
+        histplot(D.points(D.blockType==6),'subset',ismember(D.SN,sn));
         xlabel('Points'); ylabel('Proportion');
         subplot(1,2,2)
-        histogram(D.isError(D.blockType==6),'Normalization','probability');
+        histplot(D.isError(D.blockType==6),'subset',ismember(D.SN,sn));
         xlabel('Error'); ylabel('Proportion');       
     case 'HIST_errors_points_sn'
         sn=1; 

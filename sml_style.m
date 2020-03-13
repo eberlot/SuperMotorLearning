@@ -78,6 +78,21 @@ switch(styID)
         opt.general.markertype  = {'o','v','^','s'};
         opt.general.linestyle   = {'-'};
         opt.general.markersize  = ms;
+    case 'Sess2'
+        colours                 = {lightgray,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'o','v','^','s'};
+        opt.general.linestyle   = {'-'};
+        opt.general.markersize  = ms;
+    case 'SessShade'
+        colours                 = {black,gray,lightgray,blue};
+        canvas                  = 'blackonwhite';
+        opt.save.journal        = 'brain';
+        opt.general.markertype  = {'o','s'};
+        opt.general.linestyle   = {'-','--'};
+        opt.general.markersize  = ms;
+        opt.general.errorbars   = 'shade';
     case 'Trained'
         colours                 = {red,mediumred,lightred};
         canvas                  = 'blackonwhite';

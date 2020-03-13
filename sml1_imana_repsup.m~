@@ -6384,34 +6384,7 @@ switch(what)
                 plt.line(D.model,D.bayesEst,'style',stySeqShade);
                 hold on;
                 drawline(0,'dir','horz');
-                xlabel('Scaling model'); ylabel('Evidence'); title(sprintf('%s-session %d',regname_cortex{r},ss));
-                t1 = gca;
-                corrTick = linspace(min(t1.XTick),max(t1.XTick),11);
-                set(gca,'XTickLabel',(0:.1:1),'XTick',corrTick);
-            end
-        end
-    case 'PCM:scaling_plot_seqType'
-        % here plot the scaling results, split across sequences
-        parcelType = 'Brodmann';
-        reg = [1:3,7];
-        sessN = 1:4;
-        T = load(fullfile(pcmDir,sprintf('FoSEx_scalingModel_%s_seqType',parcelType)));
-        for r=reg
-            for ss=sessN
-                T1 = getrow(T,T.roi==r & T.sessN==ss);
-                T1.bayesEst = bsxfun(@minus,T1.likelihood,mean(T1.likelihood,2));
-                % reshape
-                nModel      = size(T1.bayesEst,2);
-                D.bayesEst  = T1.bayesEst(:);
-                D.SN        = repmat(T1.SN,nModel,1);
-                D.model     = kron((1:nModel)',ones(size(T1.bayesEst,1),1));
-                D.seqType   = repmat(T1.seqType,nModel,1);
-                figure(r)
-                subplot(1,numel(sessN),find(ss==sessN))
-                plt.line(D.model,D.bayesEst,'split',D.seqType,'style',stySeqShade);
-                hold on;
-                drawline(0,'dir','horz');
-                xlabel('Scaling model'); ylabel('Evidence'); title(sprintf('%s-session %d',regname_cortex{r},ss));
+                xlabel('Model correlation'); ylabel('Evidence'); title(sprintf('%s-session %d',regname_cortex{r},ss));
                 t1 = gca;
                 corrTick = linspace(min(t1.XTick),max(t1.XTick),11);
                 set(gca,'XTickLabel',(0:.1:1),'XTick',corrTick);

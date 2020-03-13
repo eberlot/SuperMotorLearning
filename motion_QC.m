@@ -22,7 +22,7 @@ function M=motion_QC(SPM,varargin)
 % timing information
 
 subjDir = [];
-vararginoptions(varargin,{'subjDir'});
+vararginoptions(varargin,{'subjDir','prefix'});
 
 [dirAll,~]=spm_fileparts(SPM.xY.VY(1).fname);
 % determine subject directory from SPM if not given
@@ -34,6 +34,7 @@ start=[0 cumsum(SPM.nscan)]+1;
 % call text files with movement parameters
 for i=1:length(SPM.nscan)
     [~,filename]=spm_fileparts(SPM.xY.VY(start(i)).fname);
+    filename = filename(2:end); % temporary
     if exist('prefix')
         filename = [prefix filename];
     end
@@ -72,12 +73,15 @@ temp=MOV(:,4:6);
 temp=radius*temp;
 MOV(:,4:6)=temp;
 
-
-fwd=sum(abs(DTS),2);
+DTS2 = [zeros(1,size(DTS,2));diff(MOV)];
+% replace the starts of the run with zeros
+nImage = size(DTS2,1)/length(SPM.nscan);
+imRepl = repmat(nImage,length(SPM.nscan),1).*(0:1:(length(SPM.nscan)-1))'+1; % images to be replaced
+%DTS2(imRepl,:) = 0;
+M.fwd=sum(abs(DTS2),2)';
 rms=sqrt(mean(MOV.^2,1));    % root mean square for each column
-M.fwd = fwd;
-M.rms = rms;
-M.fwd = mean(fwd);
-M.rms = mean(rms);
+M.fwd_trans = sum(abs(DTS(:,1:3)),2)'; % translation
+M.fwd_rot = sum(abs(DTS2(:,4:6)),2)'; % translation
+M.fwd_mean = mean(M.fwd);
     
 end

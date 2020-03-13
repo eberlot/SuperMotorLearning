@@ -1386,11 +1386,11 @@ switch what
         % individual fit
       %   I = pcm_fitModelIndivid(Data,model,partV{1},condV{1},'runEffect',runEffect);
       %   T.individ_likelihood    = I.likelihood;
-       %  T.bayesEst_individ      = bsxfun(@minus,T.individ_likelihood,T.individ_likelihood(:,1));
-       %  T.mean_like_individ     = mean(I.likelihood,2);
-       %  T.norm_like_individ     = bsxfun(@minus,I.likelihood,T.mean_like_individ); % normalised to mean
-       %  T.posterior_individ     = exp(T.bayesEst_individ);
-       %  T.posterior_individ     = bsxfun(@rdivide,T.posterior_individ,sum(T.posterior_individ,2));
+         T.bayesEst_individ      = bsxfun(@minus,T.individ_likelihood,T.individ_likelihood(:,1));
+         T.mean_like_individ     = mean(I.likelihood,2);
+         T.norm_like_individ     = bsxfun(@minus,I.likelihood,T.mean_like_individ); % normalised to mean
+         T.posterior_individ     = exp(T.bayesEst_individ);
+         T.posterior_individ     = bsxfun(@rdivide,T.posterior_individ,sum(T.posterior_individ,2));
          varargout{1}=T;
     case 'PCM:corr_plotflatmap'
         % project correlation from the winner correlation model
@@ -1950,17 +1950,10 @@ switch what
         hemi = 1;
         metric = 'bayesEst'; % bayesEst, bayesEst_cross or bayesEst_individ
         sessType = 'transitions'; % transitions or relativeto1
-        numError = 2;
-        excludeError = 1;
         vararginoptions(varargin,{'modelType','parcelType','reg','metric','sessType'});
         
-        
-        if excludeError
-            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
-        else
-            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
-        end
-        
+        %T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors_individual_%s.mat',parcelType,sessType)));
         if strcmp(modelType,'wSess')
             if isfield(T,'reg')
                 T = rmfield(T,'reg');
@@ -2316,23 +2309,17 @@ switch what
             fprintf('All %s\n\n',regname_cortex{r});
         end
     case 'PCM:stats_crossval'
-        % here do a week x seqType anova per model
+            % here do a week x seqType anova per model
         modelType = 'nonlinear_individual';
         sessType = 'transitions';
         parcelType = 'Brodmann';
         reg = 1:8;
         hemi = 1;
         metric = 'bayesEst'; % bayesEst, or bayesEst_individ
-        excludeError = 1;
-        numError = 2;
         vararginoptions(varargin,{'modelType','parcelType','reg','metric'});
         
-        if excludeError
-            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
-        else
-            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
-        end
- 
+        %T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+         T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors_individual_%s.mat',parcelType,sessType)));
         if strcmp(modelType,'wSess')
             T.(metric) = bsxfun(@minus,T.(metric),T.(metric)(:,2));
             T.(metric) = T.(metric)(:,2:end);
@@ -2356,14 +2343,11 @@ switch what
                 N.val(2,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==1,round(mean(corU1)));
                 N.val(3,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==2,round(mean(corT2)));
                 N.val(4,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==2,round(mean(corU2)));
-               % N.val(5,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corT2)));
-               % N.val(6,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corU2)));
-               % N.seqType = [1;2;1;2;1;2];
-               % N.sess = [1;1;2;2;3;3];
-               % N.sn = [s;s;s;s;s;s];
-                N.seqType = [1;2;1;2];
-                N.sess = [1;1;2;2];
-                N.sn = [s;s;s;s];
+                N.val(5,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corT2)));
+                N.val(6,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corU2)));
+                N.seqType = [1;2;1;2;1;2];
+                N.sess = [1;1;2;2;3;3];
+                N.sn = [s;s;s;s;s;s];
                 NN=addstruct(NN,N);
             end
             fprintf('Region %s:\ns',regname_cortex{r});
