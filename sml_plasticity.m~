@@ -1126,7 +1126,7 @@ switch what
         withinCov   = 'individual'; % covariance type: individual or iid (or meanPattern)
         exclError = 1;
         numError = 2;
-        vararginoptions(varargin,{'beta_choice','sn','reg','sessTr','algorithm','parcelType','withinCov','nModel','sessType','exclError'});
+        vararginoptions(varargin,{'beta_choice','sn','reg','sessTr','algorithm','parcelType','withinCov','nModel','sessType','exclError','numError'});
         AllSess=[];
         if any(strcmp(parcelType,{'tesselsWB_162','tesselsWB_362'}))
             reg = sml_plasticity('TESSEL:select','sessN',1:3,'betaChoice','multi','hemi',hemi,'tesselType',parcelType)';
@@ -1386,11 +1386,11 @@ switch what
         % individual fit
       %   I = pcm_fitModelIndivid(Data,model,partV{1},condV{1},'runEffect',runEffect);
       %   T.individ_likelihood    = I.likelihood;
-         T.bayesEst_individ      = bsxfun(@minus,T.individ_likelihood,T.individ_likelihood(:,1));
-         T.mean_like_individ     = mean(I.likelihood,2);
-         T.norm_like_individ     = bsxfun(@minus,I.likelihood,T.mean_like_individ); % normalised to mean
-         T.posterior_individ     = exp(T.bayesEst_individ);
-         T.posterior_individ     = bsxfun(@rdivide,T.posterior_individ,sum(T.posterior_individ,2));
+       %  T.bayesEst_individ      = bsxfun(@minus,T.individ_likelihood,T.individ_likelihood(:,1));
+       %  T.mean_like_individ     = mean(I.likelihood,2);
+       %  T.norm_like_individ     = bsxfun(@minus,I.likelihood,T.mean_like_individ); % normalised to mean
+       %  T.posterior_individ     = exp(T.bayesEst_individ);
+       %  T.posterior_individ     = bsxfun(@rdivide,T.posterior_individ,sum(T.posterior_individ,2));
          varargout{1}=T;
     case 'PCM:corr_plotflatmap'
         % project correlation from the winner correlation model
@@ -1950,10 +1950,17 @@ switch what
         hemi = 1;
         metric = 'bayesEst'; % bayesEst, bayesEst_cross or bayesEst_individ
         sessType = 'transitions'; % transitions or relativeto1
-        vararginoptions(varargin,{'modelType','parcelType','reg','metric','sessType'});
+        numError = 2;
+        excludeError = 1;
+        vararginoptions(varargin,{'modelType','parcelType','reg','metric','sessType','numError','excludeError'});
         
-        %T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
-        T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors_individual_%s.mat',parcelType,sessType)));
+        
+        if excludeError
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
+        else
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        end
+        
         if strcmp(modelType,'wSess')
             if isfield(T,'reg')
                 T = rmfield(T,'reg');
@@ -1997,7 +2004,7 @@ switch what
             style.use('SessUntrained_dotted')
             plt.line(D.model,D.metric2,'split',[D.seqType D.sessTr],'subset',D.sessTr==2 & D.seqType==2);
 
-            figure(94)
+            figure(91)
             subplot(1,numel(reg),find(r==reg))
             style.use('SeqShade_4');
             plt.line(D.model,D.metric2,'split',[D.sessTr D.seqType],'subset',D.sessTr==1); 
@@ -2021,6 +2028,69 @@ switch what
             corrTick = linspace(min(t1.XTick),max(t1.XTick),11);
             set(gca,'XTickLabel',(0:.1:1),'XTick',corrTick);
         end
+    case 'PCM:plot_corrModels_compareGLMS'
+        % here compare glms with / without errors
+        modelType = 'nonlinear_individual';
+        % for linear models: wSess
+        % for nonlinear models: nonlinear_indiviudal / nonlinear_individual, nonlinear_meanPattern
+        parcelType = 'Brodmann';
+        reg = [1:3,7];
+        hemi = 1;
+        metric = 'bayesEst'; % bayesEst, bayesEst_cross or bayesEst_individ
+        sessType = 'transitions'; % transitions or relativeto1
+        numError = 3;
+        T1=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
+        T2=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        
+        for r=reg 
+            t1 = getrow(T1,T1.regType==r & T1.regSide==hemi);
+            t1.metric2 = bsxfun(@minus,t1.(metric),mean(t1.(metric),2));
+            % reshape
+            nModel      = size(t1.(metric),2);
+            D.(metric)  = t1.(metric)(:);
+            D.metric2   = t1.metric2(:);
+            D.SN        = repmat(t1.SN,nModel,1);
+            D.sessTr    = repmat(t1.sessTr,nModel,1);
+            D.seqType   = repmat(t1.seqType,nModel,1);
+            D.model     = kron((1:nModel)',ones(size(t.(metric),1),1));    
+        end
+    case 'PCM:plot_corrModels_errors'
+        % relate the difference in correlation to errors made
+         modelType = 'nonlinear_individual';
+        % for linear models: wSess
+        % for nonlinear models: nonlinear_indiviudal / nonlinear_individual, nonlinear_meanPattern
+        parcelType = 'Brodmann';
+        reg = 3;
+        metric = 'bayesEst'; % bayesEst, bayesEst_cross or bayesEst_individ
+        sessType = 'transitions'; % transitions or relativeto1
+        vararginoptions(varargin,{'metric'});
+        T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        SS = load(fullfile(anaDir,'scanner_behavioural_data.mat'));
+        [~,k] = max(T.(metric)');
+        T.maxCorr = [k/30]';
+        K.errDiff = SS.ER(SS.scanSess==2)-SS.ER(SS.scanSess==1);
+        K.corrDiff = T.maxCorr(T.roi==reg & T.sessTr==2)-T.maxCorr(T.roi==reg & T.sessTr==1);
+        K.corr = T.maxCorr(T.roi==reg & T.sessTr==1);
+        K.seqType = [ones(26,1);ones(26,1)*2];
+        
+        figure
+        style.use('Seq');
+        subplot(121)
+        plt.scatter(SS.ER(SS.scanSess==1),K.corr,'split',K.seqType,'subset',SS.ER(SS.scanSess==1)<0.3,'leg',{'trained','untrained'});
+        xlabel('Errors - session 1'); ylabel('Correlation session 1-2');
+        subplot(122)
+        plt.scatter(SS.ER(SS.scanSess==2)-SS.ER(SS.scanSess==1),K.corr,'split',K.seqType,'subset',SS.ER(SS.scanSess==1)<.3,'leg',{'trained','untrained'});
+        xlabel('Difference in errors: sess1-sess2'); ylabel('Correlation session 1-2');
+        
+        
+        figure
+        subplot(121)
+        scatterplot(SS.ER(SS.scanSess==1),K.corr,'subset',SS.seqType==1);
+        subplot(122)
+        scatterplot(SS.ER(SS.scanSess==2)-SS.ER(SS.scanSess==1),K.corr,'subset',SS.ER(SS.scanSess==1)<.3);
+        [r,p]=corr(SS.ER(SS.scanSess==2&SS.seqType==1)-SS.ER(SS.scanSess==1&SS.seqType==1),K.corr(K.seqType==1));
+        [r,p]=corr(SS.ER(SS.scanSess==2)-SS.ER(SS.scanSess==1),K.corr);
+         
     case 'PCM:plot_corrModels_topCorr'
         modelType = 'nonlinear_individual';
         parcelType = 'Brodmann';
@@ -2224,12 +2294,19 @@ switch what
         modelType = 'nonlinear_individual';
         sessType = 'transitions';
         parcelType = 'Brodmann';
-        reg = 1:8;
+        reg = [1:3,7];
         hemi = 1;
         metric = 'bayesEst'; % bayesEst, or bayesEst_individ
-        vararginoptions(varargin,{'modelType','parcelType','reg','metric'});
+        excludeError = 0;
+        numError = 3;
+        vararginoptions(varargin,{'modelType','parcelType','reg','metric','excludeError','numError'});
         
-        T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        if excludeError
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
+        else
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        end
+        
         if strcmp(modelType,'wSess')
             T.(metric) = bsxfun(@minus,T.(metric),T.(metric)(:,2));
             T.(metric) = T.(metric)(:,2:end);
@@ -2309,30 +2386,36 @@ switch what
             fprintf('All %s\n\n',regname_cortex{r});
         end
     case 'PCM:stats_crossval'
-            % here do a week x seqType anova per model
+        % here do a week x seqType anova per model
         modelType = 'nonlinear_individual';
         sessType = 'transitions';
         parcelType = 'Brodmann';
         reg = 1:8;
         hemi = 1;
         metric = 'bayesEst'; % bayesEst, or bayesEst_individ
-        vararginoptions(varargin,{'modelType','parcelType','reg','metric'});
+        excludeError = 1;
+        numError = 2;
+        vararginoptions(varargin,{'modelType','parcelType','reg','metric','excludeError','numError'});
         
-        %T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
-         T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors_individual_%s.mat',parcelType,sessType)));
+        if excludeError
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_nonlinear_errors%d_individual_%s.mat',parcelType,numError,sessType)));
+        else
+            T=load(fullfile(stabDir,sprintf('PCM_corrModels_%s_%s_%s.mat',parcelType,modelType,sessType)));
+        end
+ 
         if strcmp(modelType,'wSess')
             T.(metric) = bsxfun(@minus,T.(metric),T.(metric)(:,2));
             T.(metric) = T.(metric)(:,2:end);
             T=rmfield(T,'reg');
         end
-        %allSubj = 1:26; 
+       %allSubj = 1:26; 
         allSubj = 1:25;
         for r=reg
             NN=[];
             t = getrow(T,T.regType==r & T.regSide==hemi);
             t.metric2 = bsxfun(@minus,t.(metric),mean(t.(metric),2));
             t.metric3 = bsxfun(@minus,t.(metric),max(t.(metric),2));
-            for s=1:25%s=1:26
+            for s=1:26
                 testSubj = allSubj(allSubj~=s)';
                 [~,corT1]=max(t.metric2(ismember(t.SN,testSubj)&t.sessTr==1&t.seqType==1,:),[],2);
                 [~,corU1]=max(t.metric2(ismember(t.SN,testSubj)&t.sessTr==1&t.seqType==2,:),[],2);
@@ -2343,11 +2426,14 @@ switch what
                 N.val(2,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==1,round(mean(corU1)));
                 N.val(3,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==2,round(mean(corT2)));
                 N.val(4,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==2,round(mean(corU2)));
-                N.val(5,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corT2)));
-                N.val(6,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corU2)));
-                N.seqType = [1;2;1;2;1;2];
-                N.sess = [1;1;2;2;3;3];
-                N.sn = [s;s;s;s;s;s];
+               % N.val(5,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corT2)));
+               % N.val(6,:) = t.metric2(t.SN==s&t.seqType==1&t.sessTr==3,round(mean(corU2)));
+               % N.seqType = [1;2;1;2;1;2];
+               % N.sess = [1;1;2;2;3;3];
+               % N.sn = [s;s;s;s;s;s];
+                N.seqType = [1;2;1;2];
+                N.sess = [1;1;2;2];
+                N.sn = [s;s;s;s];
                 NN=addstruct(NN,N);
             end
             fprintf('Region %s:\ns',regname_cortex{r});
@@ -2447,7 +2533,7 @@ switch what
     case 'DIST:plot_mahalanobis'
         roi=1:8;
         hemi=1;
-        sessN=1:3;
+        sessN=1:4;
         parcelType='Brodmann';
         exclError = 1;
         numError = 1;
@@ -2733,7 +2819,7 @@ switch what
         hemi=1;
         exclError = 1;
         numError = 2;
-        vararginoptions(varargin,{'roi','parcelType','hemi','exclError'});
+        vararginoptions(varargin,{'roi','parcelType','hemi','exclError','numError'});
         
         if exclError
             D=load(fullfile(distPscDir,sprintf('corrDistError%d_seqType_%s_ROI.mat',numError,parcelType)));
@@ -2755,9 +2841,10 @@ switch what
         roi = [1,2,3,7]; % S1, M1, PMd, SPLa
         parcelType = 'Brodmann';
         exclError = 1;
-        vararginoptions(varargin,{'parcelType','roi','exclError'});
+        numError = 3;
+        vararginoptions(varargin,{'parcelType','roi','exclError','numError'});
         if exclError
-            D=load(fullfile(distPscDir,sprintf('distError_%s_ROI',parcelType)));
+            D=load(fullfile(distPscDir,sprintf('distError%d_%s_ROI',numError,parcelType)));
         else
             D=load(fullfile(distPscDir,sprintf('dist_%s_ROI',parcelType)));
         end
@@ -2773,7 +2860,7 @@ switch what
         parcelType = 'Brodmann';
         exclError = 1;
         numError = 2;
-        vararginoptions(varargin,{'parcelType','roi','exclError'});
+        vararginoptions(varargin,{'parcelType','roi','exclError','numError'});
         if exclError
             D=load(fullfile(distPscDir,sprintf('corrDistError%d_seqType_%s_ROI.mat',numError,parcelType)));
         else
@@ -2782,6 +2869,9 @@ switch what
         style.use('4Reg');
         D = normData(D,'corr_seqType');
         D = getrow(D,ismember(D.regType,roi) & D.regSide==1); % only contralateral
+        figure
+        plt.line(D.sessN,ssqrt(D.normcorr_seqType),'subset',D.sessN<4,'split',D.roi ,'leg',{'S1','M1','PMd','SPLa'});
+        xlabel('Scan'); ylabel('Sequence type distance'); title('cosine');
         figure
         plt.line([D.sessN>3 D.sessN],ssqrt(D.normcorr_seqType),'split',D.roi ,'leg',{'S1','M1','PMd','SPLa'});
         xlabel('Scan'); ylabel('Sequence type distance'); title('cosine');
@@ -3222,6 +3312,12 @@ switch what
         ttestDirect(SS.ER2,[SS.seqType SS.sn],2,'paired','split',SS.scanSess);
         anovaMixed(SS.ER,SS.sn,'within',[SS.scanSess SS.seqType],{'scan','seqType'});
         ttestDirect(SS.ER,[SS.seqType SS.sn],2,'paired','split',SS.scanSess);
+        for i1=1:3
+            for i2=i1+1:4
+                fprintf('session %d-%d\n',i1,i2)
+                ttestDirect(SS.ER,[SS.scanSess SS.sn],2,'paired','subset',SS.scanSess==i1 | SS.scanSess==i2);
+            end
+        end
         % for behavioural data
         D = load(fullfile(behDir,'analyze','alldata.mat'));
         figure

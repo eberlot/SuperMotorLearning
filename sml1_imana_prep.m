@@ -30,7 +30,8 @@ glmTrialDir     ={[baseDir '/glmTrial/glmTrial1'],[baseDir '/glmTrial/glmTrial2'
 glmErrorDir{1}  ={[baseDir '/glmSessError1/glmSessError1'],[baseDir '/glmSessError1/glmSessError2'],[baseDir '/glmSessError1/glmSessError3'],[baseDir '/glmSessError1/glmSessError4']}; % one glm per session
 glmErrorDir{2}  ={[baseDir '/glmSessError2/glmSessError1'],[baseDir '/glmSessError2/glmSessError2'],[baseDir '/glmSessError2/glmSessError3'],[baseDir '/glmSessError2/glmSessError4']}; % one glm per session
 glmErrorDir{3}  ={[baseDir '/glmSessError3/glmSessError1'],[baseDir '/glmSessError3/glmSessError2'],[baseDir '/glmSessError3/glmSessError3'],[baseDir '/glmSessError3/glmSessError4']}; % one glm per session
-
+glmErrorDir{4}  ={[baseDir '/glmSessError4/glmSessError1'],[baseDir '/glmSessError4/glmSessError2'],[baseDir '/glmSessError4/glmSessError3'],[baseDir '/glmSessError4/glmSessError4']}; % one glm per session
+glmErrorDir{5}  ={[baseDir '/glmSessError5/glmSessError1'],[baseDir '/glmSessError5/glmSessError2'],[baseDir '/glmSessError5/glmSessError3'],[baseDir '/glmSessError5/glmSessError4']}; % one glm per session
 % ------------------------- Experiment Info -------------------------------
 numDummys  = 4;        % per run
 numTRs     = [440 440 440 160 440 440 440 160 440 440,...
@@ -2436,11 +2437,24 @@ loc_AC     = {[-112 -165 -176],...
     case '3f_GLM_SESS_error' % ------------- GLM per session, excluding errors! ------------------
         % makes the glm per subject and per session
     case 'GLM_sess_error_all'
-        glm=2;
+        glm=3;
+        sn = [5:9,11:31];
+        sessN = 1:4;
         vararginoptions(varargin,{'sn','glm','sessN'});
-        sml1_imana_prep('GLM_make_sess_error','sn',sn,'glm',glm,'sessN',sessN);
-        sml1_imana_prep('GLM_estimate_sess_error','sn',sn,'sessN',sessN,'glm',glm);
-        sml1_imana_prep('GLM_contrast_sess_error','sn',sn,'sessN',sessN,'glm',glm);
+        for n=1:2
+            for ss=sessN
+                for s=sn
+                    tElapsed = tic;
+                    sml1_imana_prep('GLM_make_sess_error2','sn',s,'glm',glm,'sessN',ss,'numError',n+3);
+                    sml1_imana_prep('GLM_estimate_sess_error','sn',s,'sessN',ss,'numError',n+3);
+                    sml1_imana_prep('GLM_contrast_sess_error','sn',s,'sessN',ss,'numError',n+3);
+                    fprintf('********* Done all %s sess-%d.*********\n\n\n',subj_name{s},ss);
+                    toc(tElapsed);
+                end
+            end
+            copyfile(fullfile(sprintf('%s/glmSessError%d',baseDir,n+3)),fullfile(sprintf('/Volumes/MotorControl/data/SuperMotorLearning/glmSessError%d',n+3)));
+        end
+        
     case 'BEH_add_numErrors'
         % here add number of errors - for scanner sessions
         sn = [6:9,11:31];
@@ -2609,8 +2623,8 @@ loc_AC     = {[-112 -165 -176],...
         sessN = 1:4;
         sn = [5:9,11:31];
         glm = 3;    %1/2/3
-        numError = 2;
-        vararginoptions(varargin,{'sn','glm','sessN'});
+        numError = 4;
+        vararginoptions(varargin,{'sn','glm','sessN','numError'});
         % Set some constants.
         prefix       = 'u';
         T            = [];
@@ -2668,10 +2682,10 @@ loc_AC     = {[-112 -165 -176],...
                     for c = 1:numel(num_seq)+1
                         calcRegress=0;
                         if c<=numel(num_seq)
-                            idx = find(R.seqNumb==c & R.numError<3);
+                            idx = find(R.seqNumb==c & R.numError<numError+2);
                             %idx = find(R.seqNumb==c & R.isError==0); % find indx of all CORRECT trials in run - 1:6 trained; 7-12 untrained
                         else % error
-                            idx = find(R.numError>=3);
+                            idx = find(R.numError>=numError+2);
                             %idx = find(R.isError==1); % find indx of all INCORRECT trials in run - 1:6 trained; 7-12 untrained
                         end
                         if ~isempty(idx) && c<=numel(num_seq)
@@ -2734,8 +2748,8 @@ loc_AC     = {[-112 -165 -176],...
     case 'GLM_estimate_sess_error'
         % Estimate the GLM from the appropriate SPM.mat file. 
         % Make GLM files with case 'GLM_make'.
-        vararginoptions(varargin,{'sn','sessN'});
-        numError = 2;
+        numError = 4;
+        vararginoptions(varargin,{'sn','sessN','numError'});
         for ss = sessN
             for s = sn
                 % Load files
@@ -2753,8 +2767,8 @@ loc_AC     = {[-112 -165 -176],...
         % 2:   Novel seq vs. rest   
         sn=[5:9,11:31];
         sessN=1:4;
-        numError=2;
-        vararginoptions(varargin,{'sn','sessN','glm'});
+        numError=4;
+        vararginoptions(varargin,{'sn','sessN','glm','numError'});
         cwd = pwd;
         for ss=sessN
             % Loop through subjects.
@@ -3064,6 +3078,30 @@ loc_AC     = {[-112 -165 -176],...
             R = region_calcregions(R);
             save(fullfile(regDir,[subj_name{s},sprintf('_%s_regions.mat',parcelType)]),'R');
             fprintf('\nROIs %s have been defined for %s \n',parcelType,subj_name{s});
+        end
+    case 'ROI_define_wb_mask'
+        % generic region over left hemisphere where distances >.02
+        % based on average across all sequence distances in first execution, session 4
+        sn = [5:9,11:31];
+        atlas = 'FoSEx_FS_LR_164';
+        vararginoptions(varargin,{'sn'});
+        for s=sn
+            mask = fullfile(regDir,['mask_' subj_name{s} '.nii']); % mask constructed in mask_combine
+            surfDir = fullfile(wbDir,atlas);
+            subjDir = fullfile(wbDir,subj_name{s});
+            for h=1
+                G = gifti(fullfile(surfDir,'sL.mask_distance.func.gii'));
+                R{1}.type     = 'surf_nodes';
+                R{1}.location = find(G.cdata(:,1));
+                R{1}.white    = fullfile(subjDir,sprintf('%s.%s.white.164k.surf.gii',subj_name{s},hemI{h}));
+                R{1}.pial     = fullfile(subjDir,sprintf('%s.%s.pial.164k.surf.gii',subj_name{s},hemI{h}));
+                R{1}.linedef  = [5,0,1];
+                R{1}.image    = mask;
+                R{1}.name     = 'distance_mask';
+            end
+            R = region_calcregions(R);
+            save(fullfile(regDir,[subj_name{s},'_distanceMask_regions.mat']),'R');
+            fprintf('\nROI based on distance mask has been defined for %s \n',subj_name{s});
         end
 
     case 'ROI_make_nii'                                                     % OPTIONAL   :  Convert ROI def (.mat) into multiple .nii files (to check!)

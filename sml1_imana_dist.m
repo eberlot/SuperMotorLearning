@@ -2588,7 +2588,7 @@ switch(what)
                            %     S.dist_cross    = NaN;
                            % end
                         else
-                            if strcmp(parcelType,'BG-striatumbla')
+                          %  if strcmp(parcelType,'BG-striatumbla')
                                 for ss1=1:4
                                     %load(fullfile(glmSessDir{ss1}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
                                     load(fullfile(glmErrorDir{numError}{ss1}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
@@ -2600,13 +2600,13 @@ switch(what)
                                 end
                                 i1 = find(dataTest{1}(1,:)); i2 = find(dataTest{2}(1,:)); i3 = find(dataTest{3}(1,:)); i4 = find(dataTest{4}(1,:));  
                                 iA = intersect(i1,i2); iA = intersect(iA,i3); idx = intersect(iA,i4);
-                            end
+                         %   end
                             
                             Y = region_getdata(V,R{r});  % Data Y is N x P
                             data = region_getdata(oP,R{r}); % from added images
                        %     betaRaw = region_getdata(P,R{r});
                             % exclude any missing data in voxels
-                            idx = find(Y(1,:));
+                           % idx = find(Y(1,:));
                             % estimate region betas
                             [betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','runwise');
                             %[betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','overall');
@@ -2911,11 +2911,16 @@ switch(what)
         type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
         parcelType = 'Brodmann'; % or Brodmann, tesselsWB_162
         numError = 2;
-        vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine','numError'});
+        excludeError = 1;
+        vararginoptions(varargin,{'sn','sessN','roi','betaChoice','checkG','simulations','type','parcelType','roiDefine','numError','excludeError'});
         
-        for ss=sessN;
-            %T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss))); % loads region data (T)
-            T = load(fullfile(betaDir,'group',sprintf('betasError%d_%s_sess%d.mat',numError,parcelType,ss))); % loads region data (T)
+        for ss=sessN            
+            if excludeError
+                T = load(fullfile(betaDir,'group',sprintf('betasError%d_%s_sess%d.mat',numError,parcelType,ss))); % loads region data (T)
+            else
+                T = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss))); % loads region data (T)
+            end
+            
             if strcmp(roiDefine,'all')==1
                 roi=unique(T.region)';
             end
@@ -2954,6 +2959,7 @@ switch(what)
                         So.IPM=ones(1,78)*NaN;
                         So.Sig=ones(1,78)*NaN;
                         So.RDM=ones(1,66)*NaN;
+                        So.IPMfull = ones(1,144)*NaN;
                         So.psc_train = NaN;
                         So.psc_untrain = NaN;
                         Do.dist_train=NaN;
@@ -2969,6 +2975,7 @@ switch(what)
                         [G,Sig]     = pcm_estGCrossval(betaW(1:size(D.run,1),:),D.run,D.seqNumb);
                         So.IPM      = rsa_vectorizeIPM(G);
                         So.Sig      = rsa_vectorizeIPM(Sig);
+                        So.IPMfull  = rsa_vectorizeIPMfull(G);
                         % squared distances
                        % So.RDM      = rsa.distanceLDC(betaW(1:size(D.run,1),:),D.run,D.seqNumb);
                         % add all subjects, regions - G values
@@ -3018,8 +3025,13 @@ switch(what)
             end
             
             % % save - stats data and simulations
-            %save(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)),'-struct','To');
-            save(fullfile(betaDir,'group',sprintf('statsError%d_%s_%sPW_sess%d.mat',numError,parcelType,betaChoice,ss)),'-struct','To');
+            
+            if excludeError
+                save(fullfile(betaDir,'group',sprintf('statsError%d_%s_%sPW_sess%d.mat',numError,parcelType,betaChoice,ss)),'-struct','To');
+            else
+                save(fullfile(betaDir,'group',sprintf('stats_%s_%sPW_sess%d.mat',parcelType,betaChoice,ss)),'-struct','To');
+            end
+            
             if simulations==1
                 save(fullfile(regDir,sprintf('stats_%s_%sPW_SIMULATIONS_sess%d.mat',parcelType,betaChoice,ss)),'-struct','Po');
             end
@@ -4318,7 +4330,7 @@ switch(what)
         subtract_mean=0; % do NOT subtract mean - it distorts the pattern
         hemi = 1;
         numError=2;
-        vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType','hemi'});
+        vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType','hemi','numError'});
         SAll = [];
         STAll= [];
         
@@ -8902,9 +8914,10 @@ switch(what)
         sml1_imana_dist('SURF_wb:cSPM_sessTrans_group');
         sml1_imana_dist('SURF_wb:smooth_group','metric','summary_dist_sessTrans','kernel',1);
     case 'run_job1'
-        sml1_imana_dist('BETA_get','sn',[8:9,11:27,29:31],'sessN',2);
-        sml1_imana_dist('BETA_get','sn',[5:9,11:27,29:31],'sessN',3:4);
-        sml1_imana_dist('BETA_combineGroup','sn',[5:9,11:27,29:31]);
+        sml1_imana_dist('HOUSEKEEPING:renameSPM','numError',3);
+        sml1_imana_dist('PSC_create','errorNum',3);
+        sml1_imana_dist('BETA_get','sn',[5:9,11:27,29:31],'sessN',1:4,'numError',3);
+        
     case 'run_job2'
        % sml1_imana_dist('PCM_constructModelFamily_simple','parcelType','Brodmann','reg',1:8);
         sml1_imana_dist('BETA_get','parcelType','Yokoi_clusters','sn',[19:31],'sessN',4);
