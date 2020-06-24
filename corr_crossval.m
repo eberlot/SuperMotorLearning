@@ -36,7 +36,6 @@ for n = 1:numCond
                     G(nN,nN)=0.0001;
                 end
                 out(nN,n) = (1 - (G(n,nN)/sqrt(G(n,n)*G(nN,nN))))/2;
-
             otherwise
                 out(nN,n) = (1 - (G(n,nN)/sqrt(G(n,n)*G(nN,nN))))/2;
         end

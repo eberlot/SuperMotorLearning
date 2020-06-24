@@ -26,7 +26,14 @@ glmSessDir      ={[baseDir '/glmSess/glmSess1'],[baseDir '/glmSess/glmSess2'],[b
 glmErrorDir{1}  ={[baseDir '/glmSessError1/glmSessError1'],[baseDir '/glmSessError1/glmSessError2'],[baseDir '/glmSessError1/glmSessError3'],[baseDir '/glmSessError1/glmSessError4']}; % one glm per session
 glmErrorDir{2}  ={[baseDir '/glmSessError2/glmSessError1'],[baseDir '/glmSessError2/glmSessError2'],[baseDir '/glmSessError2/glmSessError3'],[baseDir '/glmSessError2/glmSessError4']}; % one glm per session
 glmErrorDir{3}  ={[baseDir '/glmSessError3/glmSessError1'],[baseDir '/glmSessError3/glmSessError2'],[baseDir '/glmSessError3/glmSessError3'],[baseDir '/glmSessError3/glmSessError4']}; % one glm per session
+glmErrorDir{4}  ={[baseDir '/glmSessError4/glmSessError1'],[baseDir '/glmSessError4/glmSessError2'],[baseDir '/glmSessError4/glmSessError3'],[baseDir '/glmSessError4/glmSessError4']}; % one glm per session
+glmErrorDir{5}  ={[baseDir '/glmSessError5/glmSessError1'],[baseDir '/glmSessError5/glmSessError2'],[baseDir '/glmSessError5/glmSessError3'],[baseDir '/glmSessError5/glmSessError4']}; % one glm per session
+glmErrorDir{6}  ={[baseDir '/glmSessError6/glmSessError1'],[baseDir '/glmSessError6/glmSessError2'],[baseDir '/glmSessError6/glmSessError3'],[baseDir '/glmSessError6/glmSessError4']}; % one glm per session
 
+for p=1:20
+    glmPermDir{p}  ={[baseDir sprintf('/glmSessPerm%d/glmSessPerm1',p)],[baseDir sprintf('/glmSessPerm%d/glmSessPerm2',p)],...
+        [baseDir sprintf('/glmSessPerm%d/glmSessPerm3',p)],[baseDir sprintf('/glmSessPerm%d/glmSessPerm4',p)]}; % one glm per session
+end
 % ------------------------- Experiment Info -------------------------------
 
 % Stimuli - numbers given in SeqNumb
@@ -2588,7 +2595,7 @@ switch(what)
                            %     S.dist_cross    = NaN;
                            % end
                         else
-                          %  if strcmp(parcelType,'BG-striatumbla')
+                            if strcmp(parcelType,'BG-striatumbla')
                                 for ss1=1:4
                                     %load(fullfile(glmSessDir{ss1}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
                                     load(fullfile(glmErrorDir{numError}{ss1}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
@@ -2600,13 +2607,13 @@ switch(what)
                                 end
                                 i1 = find(dataTest{1}(1,:)); i2 = find(dataTest{2}(1,:)); i3 = find(dataTest{3}(1,:)); i4 = find(dataTest{4}(1,:));  
                                 iA = intersect(i1,i2); iA = intersect(iA,i3); idx = intersect(iA,i4);
-                         %   end
-                            
-                            Y = region_getdata(V,R{r});  % Data Y is N x P
+                            end
+                         %   
+                            Y = region_getdata(V,R{r},'verbose',0);  % Data Y is N x P
                             data = region_getdata(oP,R{r}); % from added images
                        %     betaRaw = region_getdata(P,R{r});
                             % exclude any missing data in voxels
-                           % idx = find(Y(1,:));
+                            idx = find(Y(1,:));
                             % estimate region betas
                             [betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','runwise');
                             %[betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','overall');
@@ -2688,6 +2695,7 @@ switch(what)
         sn=[5:9,11:31];
         type = 'new'; % new or add - if creating from scratch (no subject or adding new ones only)
         numError = 1;
+        typeBeta = 'error'; % error, permutation, orig
         parcelType='Brodmann'; % 162tessels, Brodmann, cortex_buckner, BG-striatum, thalamus, tesselsWB_162, tesselsWB_362
         vararginoptions(varargin,{'sn','sessN','roi','betaChoice','type','parcelType','numError'});
         
@@ -2701,8 +2709,12 @@ switch(what)
             end
             fprintf('subjects added for sess-%d:\n',ss);
             for s=sn
-                %S=load(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d',parcelType,subj_name{s},ss)));
-                S=load(fullfile(betaDir,subj_name{s},sprintf('betasError%d_%s_%s_sess%d',numError,parcelType,subj_name{s},ss)));
+                switch typeBeta
+                    case 'orig'
+                        S=load(fullfile(betaDir,subj_name{s},sprintf('betas_%s_%s_sess%d',parcelType,subj_name{s},ss)));
+                    case 'error'
+                        S=load(fullfile(betaDir,subj_name{s},sprintf('betasError%d_%s_%s_sess%d',numError,parcelType,subj_name{s},ss)));
+                end
                 T=addstruct(T,S);
                 
                 fprintf('%d.',s);
@@ -2729,6 +2741,140 @@ switch(what)
             end
             fprintf('\nMissing %d beta files for sess-%d!!\n',idx,ss);
         end
+    case 'BETA_get_permuted'
+        % here deal with permuted beta case
+        sessN = 1:2;
+        sn  = [5:9,11:31];    
+        roi = [1:3,7];
+        roiDefine = 'subset'; % determine all regions from region file R, or 'tesselSelect' - based on distance mask
+        parcelType = 'Brodmann'; % 162tessels, Brodmann, cortex_buckner, BG-striatum, thalamus, tesselsWB_162, tesselWB_362
+        numPerm = 1;
+        vararginoptions(varargin,{'sn','sessN','roi','parcelType','roiDefine','numPerm'});
+       
+        if strcmp(parcelType,'Yokoi_clusters')
+            regType = [1 2 3 4 5 6 7 8 9 10 1 2 3 6 8 9 10];
+            regSide = [1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2];
+        end
+        idxRoi=0;
+        for ss=sessN
+            % harvest
+            for s=sn % for each subj
+                T=[];
+                fprintf('\nSubject: %d\n',s) % output to user
+                    fprintf('Starting to extract betas...\n');
+                    tElapsed=tic;
+                    % load files
+                    load(fullfile(glmPermDir{numPerm}{ss}, subj_name{s},'SPM.mat'));  % load subject's SPM data structure (SPM struct)
+                    load(fullfile(regDir,[subj_name{s} sprintf('_%s_regions.mat',parcelType)]));  % load subject's region parcellation (R)
+                    
+                    if idxRoi==0 % determine for first subject
+                        if strcmp(roiDefine,'all')
+                            roi=1:size(R,2);
+                            nReg_hemi = size(R,2)/2;
+                        elseif strcmp(roiDefine,'tesselSelect')
+                            nReg_hemi = size(R,2)/2;
+                            roi = [];
+                            for h=1:2
+                                tessels{h}=sml_connect('TESSEL:select','hemi',h,'nTessel',642);
+                                roi = [roi nReg_hemi*(h-1)+tessels{h}];
+                            end
+                        elseif strcmp(roiDefine,'subset')
+                            roi = roi;
+                            nReg_hemi = max(roi)+1;
+                        end
+                        idxRoi = 1;
+                    end
+                    cd (fullfile(glmPermDir{numPerm}{ss},subj_name{s})); % maybe change back when remove glm                    
+                    V = SPM.xY.VY;
+                    % new
+                    TI = load('SPM_info.mat');
+                    idx_noErr = [TI.isError==0;ones(numel(unique(TI.run)),1)];
+                    for r = roi % for each region
+                        % get raw data for voxels in region
+                        % determine if any voxels for that parcel
+                        idx=[];
+                        if size(R{r}.data,1)==0 % no voxels
+                            % make data into NaN
+                            S.betaW             = {NaN};
+                            S.betaUW            = {NaN};
+                            S.betaRAW           = {NaN};
+                            S.resMS             = {NaN};          
+                        else
+                            Y = region_getdata(V,R{r},'verbose',0);  % Data Y is N x P
+                            % exclude any missing data in voxels
+                            idx = find(Y(1,:));
+                            % estimate region betas
+                            [betaW,resMS,~,beta] = rsa.spm.noiseNormalizeBeta(Y(:,idx),SPM,'normmode','runwise');
+                            S.betaW     = {betaW(idx_noErr==1,:)};
+                            S.betaUW    = {bsxfun(@rdivide,beta(idx_noErr==1,:),sqrt(resMS))};
+                            S.betaRAW   = {beta(idx_noErr==1,:)};
+                            S.resMS     = {resMS};  
+                            clear Y data betaW beta resMS;
+                        end
+                        % voxel position
+                        S.volcoord = {R{r}.data(idx,:)'};
+                        S.SN = s;
+                        S.region = r;
+                        if r<nReg_hemi
+                            S.regSide = 1;
+                            S.regType = S.region;
+                        else
+                            S.regSide = 2;
+                            S.regType = S.region-nReg_hemi;
+                        end
+                        if any(strcmp(parcelType,{'BG-striatum','thalamus'}))
+                            S.regName = {R{r}.name};
+                        elseif strcmp(parcelType,{'Yokoi_clusters'})
+                            S.regSide = regSide(r);
+                            S.regType = regType(r); 
+                        end
+                        T = addstruct(T,S);
+                        fprintf('%d.',r);
+                        clear idx;
+                    end
+                    dircheck(fullfile(baseDir,'permutedBetas','betas',subj_name{s}));
+                    save(fullfile(baseDir,'permutedBetas','betas',subj_name{s},sprintf('betasPerm%d_%s_%s_sess%d.mat',numPerm,parcelType,subj_name{s},ss)),'-struct','T');
+                    fprintf('\nDone beta extraction for sess%d-%s\n',ss,subj_name{s}); toc(tElapsed);
+                    clear idx_noErr;
+            end
+        end
+    case 'BETA_permuted_check'
+        sn = [5:9,11:31];
+        parcelType = 'Brodmann';
+        sessN = 1:2;
+        numPerm = 1;
+        problSubj = [];
+        for s=sn
+            voxNum = zeros(4,5);
+            for ss=sessN
+                T = load(fullfile(baseDir,'permutedBetas','betas',subj_name{s},sprintf('betasPerm%d_%s_%s_sess%d.mat',numPerm,parcelType,subj_name{s},ss)));
+                for r=1:4
+                    voxNum(ss,r) = size(T.betaW{r},2);
+                end
+            end
+            if numel(unique(voxNum))>5
+                problSubj = [problSubj s];
+            end
+        end
+        keyboard;
+    case 'BETA_combineGroup_permuted'
+        sessN=1:2;
+        sn = [5:9,11:31];
+        numPerm = 1;
+        parcelType='Brodmann'; 
+        vararginoptions(varargin,{'sn','sessN','roi','betaChoice','type','parcelType','numPerm'});    
+        
+        for ss=sessN
+            T = [];
+            fprintf('subjects added for sess-%d:\n',ss);
+            for s=sn
+                S=load(fullfile(baseDir,'permutedBetas','betas',subj_name{s},sprintf('betasPerm%d_%s_%s_sess%d',numPerm,parcelType,subj_name{s},ss)));
+                T=addstruct(T,S);
+                fprintf('%d.',s);
+            end
+            save(fullfile(baseDir,'permutedBetas','betas','group',sprintf('betasPerm%d_%s_sess%d.mat',numPerm,parcelType,ss)),'-struct','T','-v7.3');
+        end
+        
     case 'BETA_splitHalf'
           % crossvalidated version - separately for even and odd runs
         sn=[5:9,11:31];
@@ -4072,12 +4218,17 @@ switch(what)
         parcelType='Brodmann';
         hemi = 1;
         numError = 1;
-        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType','hemi','numError'});
+        excludeError=1;
+        vararginoptions(varargin,{'sn','roi','sessN','betaChoice','parcelType','hemi','numError','excludeError'});
         
         Stats = [];
         for ss=sessN
-            %T = load(fullfile(betaDir,'group',sprintf('stats_%s_%s_sess%d.mat',parcelType,betaChoice,ss))); % loads region data (D)
-            T = load(fullfile(betaDir,'group',sprintf('statsError%d_%s_%s_sess%d.mat',numError,parcelType,betaChoice,ss))); % loads region data (D)
+            if excludeError
+                T = load(fullfile(betaDir,'group',sprintf('statsError%d_%s_%s_sess%d.mat',numError,parcelType,betaChoice,ss))); % loads region data (D)
+            else
+                T = load(fullfile(betaDir,'group',sprintf('stats_%s_%s_sess%d.mat',parcelType,betaChoice,ss))); % loads region data (D)
+            end
+            
             for s=sn
                 for h=hemi
                     for r=roi
@@ -4096,8 +4247,12 @@ switch(what)
             end
         end
         % save structure
-        %save(fullfile(distPscDir,sprintf('dist_%s_ROI',parcelType)),'-struct','Stats');
-        save(fullfile(distPscDir,sprintf('distError%d_%s_ROI',numError,parcelType)),'-struct','Stats');
+        if excludeError
+            save(fullfile(distPscDir,sprintf('distError%d_%s_ROI',numError,parcelType)),'-struct','Stats');
+        else
+            save(fullfile(distPscDir,sprintf('dist_%s_ROI',parcelType)),'-struct','Stats');
+        end
+
     case 'PLOT_dist'
         roi=[1:8];
         sessN=[1:4];
@@ -4281,7 +4436,7 @@ switch(what)
         % ANOVA - session x seqType - per region
         for r=roi
             fprintf('\n Dist in %s \n',regname{r});
-            anovaMixed(T.dist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.regType==r&T.regSide==hemi);
+            anovaMixed(T.dist,T.sn,'within',[T.sessN T.seqType],{'session','seqType'},'subset',T.regType==r&T.regSide==hemi & ismember(T.sessN,[sessN]));
         end
         keyboard;
         for r=roi
@@ -4322,21 +4477,26 @@ switch(what)
         end    
         
     case 'CALC_corrDist'
-        reg = 1:8;
+        reg = [1:3,7,8];
         sn  = [5:9,11:31];
         sessN = 1:4;
         parcelType='Brodmann'; %'tesselsWB_162'
         regType = 'all';
         subtract_mean=0; % do NOT subtract mean - it distorts the pattern
         hemi = 1;
-        numError=2;
-        vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType','hemi','numError'});
+        numError=3;
+        exclError=1;
+        vararginoptions(varargin,{'sn','reg','sessN','subtract_mean','parcelType','hemi','numError','exclError'});
         SAll = [];
         STAll= [];
         
         for  ss = sessN
-            D   = load(fullfile(betaDir,'group',sprintf('betasError%d_%s_sess%d.mat',numError,parcelType,ss)));
-            %D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            if exclError
+                D   = load(fullfile(betaDir,'group',sprintf('betasError%d_%s_sess%d.mat',numError,parcelType,ss)));
+            else
+                D   = load(fullfile(betaDir,'group',sprintf('betas_%s_sess%d.mat',parcelType,ss)));
+            end
+            
             for h=hemi
                 if strcmp(regType,'all')
                     reg = unique(D.regType(D.regSide==h))';
@@ -4346,6 +4506,9 @@ switch(what)
                     for s = sn;
                         %SI = load(fullfile(glmSessDir{ss}, subj_name{s}, 'SPM_info.mat'));   % load subject's trial structure
                         SI = load(fullfile(glmErrorDir{numError}{ss}, subj_name{s}, 'SPM_info.mat'));   % load subject's trial structure
+                        if exclError
+                            SI = getrow(SI,SI.isError==0);
+                        end
                         t   = getrow(D,D.regType==roi & D.regSide==h & D.SN==s);
                         if size(t.betaW{1},2)~=1 % only for NaNs
                             data = t.betaW{1}(1:size(SI.SN,1),:);
@@ -4366,9 +4529,19 @@ switch(what)
                             C=rsa_squareRDM(C);
                             
                             % average trained dist
-                            S.corrDist(1,:) = sum(sum(triu(C(1:6,1:6))))/(6*5/2);
+                            corDist = sum(sum(triu(C(1:6,1:6))))/(6*5/2);
+                            if corDist<0 || corDist>1
+                                S.corrDist(1,:)=0;
+                            else
+                                S.corrDist(1,:)=corDist;
+                            end
                             % average untrained dist
-                            S.corrDist(2,:) = sum(sum(triu(C(7:12,7:12))))/(6*5/2);
+                            corDist = sum(sum(triu(C(7:12,7:12))))/(6*5/2);
+                            if corDist<0 || corDist>1
+                                S.corrDist(2,:)=0;
+                            else
+                                S.corrDist(2,:)=corDist;
+                            end
                             S.seqType   = [1;2]; % trained, untrained
                             S.sessN     = [ss;ss];
                             S.roi       = [roi;roi];
@@ -4377,7 +4550,13 @@ switch(what)
                             S.sn        = [s;s];
                             SAll=addstruct(SAll,S);
                             
-                            ST.corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
+                            % seqType
+                            corr_seqType = sum(sum(triu(C(7:12,1:6))))/(6*5);
+                            if corr_seqType<0 || corr_seqType>1
+                                ST.corr_seqType = 0;
+                            else
+                                ST.corr_seqType = corr_seqType;
+                            end
                             ST.sessN        = ss;
                             ST.roi          = roi;
                             ST.regType      = t.regType;
@@ -8914,10 +9093,10 @@ switch(what)
         sml1_imana_dist('SURF_wb:cSPM_sessTrans_group');
         sml1_imana_dist('SURF_wb:smooth_group','metric','summary_dist_sessTrans','kernel',1);
     case 'run_job1'
-        sml1_imana_dist('HOUSEKEEPING:renameSPM','numError',3);
-        sml1_imana_dist('PSC_create','errorNum',3);
-        sml1_imana_dist('BETA_get','sn',[5:9,11:27,29:31],'sessN',1:4,'numError',3);
-        
+        sml1_imana_prep('GLM_perm_all','sn',[5:9,11:31],'sessN',2,'nPerm',5);
+        sml1_imana_dist('BETA_get_permuted','sn',[5:9,11:31],'sessN',1:2,'numPerm',5);
+        sml1_imana_dist('BETA_combineGroup_permuted','numPerm',5);
+        %sml1_imana_prep('run_job');
     case 'run_job2'
        % sml1_imana_dist('PCM_constructModelFamily_simple','parcelType','Brodmann','reg',1:8);
         sml1_imana_dist('BETA_get','parcelType','Yokoi_clusters','sn',[19:31],'sessN',4);

@@ -32,6 +32,12 @@ glmErrorDir{2}  ={[baseDir '/glmSessError2/glmSessError1'],[baseDir '/glmSessErr
 glmErrorDir{3}  ={[baseDir '/glmSessError3/glmSessError1'],[baseDir '/glmSessError3/glmSessError2'],[baseDir '/glmSessError3/glmSessError3'],[baseDir '/glmSessError3/glmSessError4']}; % one glm per session
 glmErrorDir{4}  ={[baseDir '/glmSessError4/glmSessError1'],[baseDir '/glmSessError4/glmSessError2'],[baseDir '/glmSessError4/glmSessError3'],[baseDir '/glmSessError4/glmSessError4']}; % one glm per session
 glmErrorDir{5}  ={[baseDir '/glmSessError5/glmSessError1'],[baseDir '/glmSessError5/glmSessError2'],[baseDir '/glmSessError5/glmSessError3'],[baseDir '/glmSessError5/glmSessError4']}; % one glm per session
+glmErrorDir{6}  ={[baseDir '/glmSessError6/glmSessError1'],[baseDir '/glmSessError6/glmSessError2'],[baseDir '/glmSessError6/glmSessError3'],[baseDir '/glmSessError6/glmSessError4']}; % one glm per session
+for p=1:20
+    glmPermDir{p}  ={[baseDir sprintf('/glmSessPerm%d/glmSessPerm1',p)],[baseDir sprintf('/glmSessPerm%d/glmSessPerm2',p)],...
+        [baseDir sprintf('/glmSessPerm%d/glmSessPerm3',p)],[baseDir sprintf('/glmSessPerm%d/glmSessPerm4',p)]}; % one glm per session
+end
+
 % ------------------------- Experiment Info -------------------------------
 numDummys  = 4;        % per run
 numTRs     = [440 440 440 160 440 440 440 160 440 440,...
@@ -1073,6 +1079,47 @@ loc_AC     = {[-112 -165 -176],...
         end; % sessN
         cd(cwd);
 
+    case 'PREP_dicom_folders'
+           % here create folders
+           sessN = 1;
+           sn = 5;
+           vararginoptions(varargin,{'sn','sessN','series_type'});
+           cwd = pwd;
+           
+           
+           for ss=sessN
+               % Loop through subjects
+               for s = sn;
+                   seriesNum = fscanNum{ss}{s};
+                   % just task ones
+                   seriesNum = seriesNum([1:3,5:7,9:10]);
+                   dircheck(fullfile(dicomDir,[subj_name{s},sprintf('_%d',ss)]));
+                   cd(fullfile(dicomDir,[subj_name{s},sprintf('_%d',ss)]));
+                   
+                   % For each series number of this subject (in 'Subject Things')
+                   for i=1:length(seriesNum)
+                       r     = seriesNum(i);
+                       % Get DICOM FILE NAMES
+                       if (s<5 || s==5 && ss<3 || s==7 && ss<2)
+                           DIR   = dir(sprintf('%s.%4.4d.*.IMA',DicomName{ss}{s},r));   % Get DICOM FILE NAMES
+                           Names = vertcat(DIR.name);
+                           mkdir(sprintf('%d',r));
+                           % Copy files
+                           for ii=1:size(Names,1)
+                               copyfile(Names(ii,:),fullfile(dicomDir,[subj_name{s},sprintf('_%d',ss)],sprintf('%d',r),Names(ii,:)));
+                               fprintf('%d.',ii);
+                           end
+                           display(sprintf('\nSeries %d done \n',seriesNum(i)))
+                       end
+                   end
+               end; % sn
+           end; % sessN
+           cd(cwd);
+    case 'run_dicom_job'
+         sml1_imana_prep('PREP_dicom_folders','sessN',3);
+         sml1_imana_prep('PREP_dicom_folders','sessN',1,'sn',7);
+         sml1_imana_prep('PREP_dicom_folders','sessN',2,'sn',7);
+           
     case 'PREP_process1_func'                                               
         % need to have dicom_import done prior to this step.
         vararginoptions(varargin,{'sn','sessN'});
@@ -2439,20 +2486,18 @@ loc_AC     = {[-112 -165 -176],...
     case 'GLM_sess_error_all'
         glm=3;
         sn = [5:9,11:31];
-        sessN = 1:4;
+        sessN = 3;
         vararginoptions(varargin,{'sn','glm','sessN'});
-        for n=1:2
-            for ss=sessN
-                for s=sn
-                    tElapsed = tic;
-                    sml1_imana_prep('GLM_make_sess_error2','sn',s,'glm',glm,'sessN',ss,'numError',n+3);
-                    sml1_imana_prep('GLM_estimate_sess_error','sn',s,'sessN',ss,'numError',n+3);
-                    sml1_imana_prep('GLM_contrast_sess_error','sn',s,'sessN',ss,'numError',n+3);
-                    fprintf('********* Done all %s sess-%d.*********\n\n\n',subj_name{s},ss);
-                    toc(tElapsed);
-                end
+        for ss=sessN
+            for s=sn
+                clc;
+                tElapsed = tic;
+               % sml1_imana_prep('GLM_make_sess_error2','sn',s,'glm',glm,'sessN',ss,'numError',6);
+                sml1_imana_prep('GLM_estimate_sess_error','sn',s,'sessN',ss,'numError',6);
+                sml1_imana_prep('GLM_contrast_sess_error','sn',s,'sessN',ss,'numError',6);
+                fprintf('********* Done all %s sess-%d.*********\n\n\n',subj_name{s},ss);
+                toc(tElapsed); clear SPM;
             end
-            copyfile(fullfile(sprintf('%s/glmSessError%d',baseDir,n+3)),fullfile(sprintf('/Volumes/MotorControl/data/SuperMotorLearning/glmSessError%d',n+3)));
         end
         
     case 'BEH_add_numErrors'
@@ -2495,8 +2540,50 @@ loc_AC     = {[-112 -165 -176],...
             end
         end
         figure
-        subplot(121); plt.bar(TT.seqType,TT.error3);
-        subplot(122); plt.bar(TT.seqType,TT.error7);
+    subplot(121); plt.bar(TT.seqType,TT.error3);
+    subplot(122); plt.bar(TT.seqType,TT.error7);
+    case 'BEH_check_errors_BN'
+       % per blocknumber
+       TTT = []; KK = [];
+       for ss=1:4
+           for s=[5:9,11:31];
+               TT = [];
+               D = dload(fullfile(behavDir,['sml1_',subj_name{s},'.dat']));
+               L = getrow(D,D.ScanSess==ss);    % only blocks of that scan session
+               if ss == 4
+                   R = getrow(L,L.blockType==9); %blockType==9 - func imaging run without metronome
+               else
+                   R = getrow(L,L.blockType==3); %blockType==3 - funct imaging run with metornome
+               end
+               BN = unique(R.BN);
+               for i=1:8
+                   F = getrow(R,R.BN == BN(i));
+                   T.ER = [sum(F.isError(F.seqType==1))/sum(F.seqType==1); sum(F.isError(F.seqType==2))/sum(F.seqType==2)];
+                   T.seqType = [1;2];
+                   T.sn = [s;s];
+                   T.sessN = [ss;ss];
+                   T.BN = [i;i];
+                   TT = addstruct(TT,T);
+               end
+               [~,i1]=max(TT.ER(TT.seqType==1));
+               [~,i2]=max(TT.ER(TT.seqType==2));
+               [~,i3]=max(TT.ER); % overall
+               K.BN_maxErr = [i1;i2;i3];
+               K.SN = [s;s;s];
+               K.sessN = [ss;ss;ss];
+               K.seqType = [1;2;3];
+               KK = addstruct(KK,K);
+               TTT = addstruct(TTT,TT);
+               fprintf('Sess-%d sn-%d\n',ss,s);
+           end
+       end
+       save(fullfile(baseDir,'behavioral_data','analyze','scanner_errors_block'),'-struct','KK');
+       save(fullfile(baseDir,'behavioral_data','analyze','scanner_errors'),'-struct','TTT');
+       TTT = normData(TTT,'ER');
+       sty = style.custom({'red','blue'},'markersize',8);
+       figure
+       plt.line(TTT.BN,TTT.normER,'split',TTT.seqType,'style',sty);
+
     case 'GLM_make_sess_error'
         % makes the GLM file for each subject, and a corresponding 
         % SPM_info.mat file. The latter file contains nice summary
@@ -2682,10 +2769,12 @@ loc_AC     = {[-112 -165 -176],...
                     for c = 1:numel(num_seq)+1
                         calcRegress=0;
                         if c<=numel(num_seq)
-                            idx = find(R.seqNumb==c & R.numError<numError+2);
+                            %idx = find(R.seqNumb==c & R.numError<numError+2);
+                            idx = find(R.seqNumb==c & R.numError<1);
                             %idx = find(R.seqNumb==c & R.isError==0); % find indx of all CORRECT trials in run - 1:6 trained; 7-12 untrained
                         else % error
-                            idx = find(R.numError>=numError+2);
+                            %idx = find(R.numError>=numError+2);
+                            idx = find(R.numError>=1);
                             %idx = find(R.isError==1); % find indx of all INCORRECT trials in run - 1:6 trained; 7-12 untrained
                         end
                         if ~isempty(idx) && c<=numel(num_seq)
@@ -2828,6 +2917,173 @@ loc_AC     = {[-112 -165 -176],...
         end; %sessN
         cd(cwd);    
         
+        
+    case '3h_GLM_make_perm_error'
+           % here permute the order
+    case 'GLM_perm_all'
+        glm=3;
+        sn = [5:9,11:31];
+        sessN = 1:2;
+        nPerm = 1:20;
+        vararginoptions(varargin,{'sn','glm','sessN','nPerm'});
+        for n=nPerm
+            for ss=sessN
+                clc;
+                for s=sn
+                    tElapsed = tic;
+                    sml1_imana_prep('GLM_make_sess_perm','sn',s,'glm',glm,'sessN',ss,'numPerm',n);
+                    sml1_imana_prep('GLM_estimate_sess_perm','sn',s,'sessN',ss,'numPerm',n);
+                    fprintf('********* Done permutation %d all %s sess-%d.*********\n\n\n',n,subj_name{s},ss);
+                    toc(tElapsed);
+                end
+            end
+        end
+    case 'GLM_make_sess_perm'
+        % makes the GLM file for each subject, and a corresponding 
+        % SPM_info.mat file. The latter file contains nice summary
+        % information of the model regressors, condition names, etc.
+        % use permuted error / correct trials
+        sessN = 1:4;
+        sn = [5:9,11:31];
+        glm = 3;    %1/2/3
+        numPerm = 1;
+        vararginoptions(varargin,{'sn','glm','sessN','numPerm'});
+        % Set some constants.
+        prefix       = 'u';
+        T            = [];
+        dur          = 2.5;                                                 % secs (length of task dur, not trial dur)
+        % adjusting hrf per subject & session based on extracted timeseries!
+        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1 0 1 1.5 1 1 1 1 1 1 0.5 0 1 1 1 1 1];
+        colName = sprintf('isError_perm%d',numPerm);
+        announceTime = 0;                                                 % length of task announce time - currently not used
+        % Gather appropriate GLM presets.
+        switch glm
+            case 1  % wls
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = 128;
+                cvi_type   = 'wls';
+            case 2  % fast + hpf
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = 128;
+                cvi_type   = 'fast';
+            case 3  % fast, no hpf
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = inf;
+                cvi_type   = 'fast';
+        end
+        for ss=sessN % session
+            % Loop through subjects / all sessions and make SPM files.
+            for s = sn
+                tElapsed = tic;
+                D = dload(fullfile(baseDir,'test_behaviour',['sml1_',subj_name{s},'.dat']));
+                T=[];         
+                % Do some subject structure fields.
+                dircheck(fullfile(glmPermDir{numPerm}{ss},subj_name{s})); % add glm type
+                J.dir            = {fullfile(glmPermDir{numPerm}{ss},subj_name{s})};
+                J.timing.units   = 'secs';                                      % timing unit that all timing in model will be
+                J.timing.RT      = 1.0;                                         % TR (in seconds, as per 'J.timing.units')
+                J.timing.fmri_t  = 16;
+                J.timing.fmri_t0 = 1;               
+                L = getrow(D,D.ScanSess==ss);    % only blocks of that scan session
+                if ss == 4
+                    Rr = getrow(L,L.blockType==9); %blockType==9 - func imaging run without metronome
+                else
+                    Rr = getrow(L,L.blockType==3); %blockType==3 - funct imaging run with metornome
+                end   
+                uniqrun=unique(Rr.BN);
+                % Loop through runs.
+                for r = 1:numruns_task_sess
+                    R = getrow(Rr,Rr.BN==uniqrun(r)); % 1-8 func runs of the session                    
+                    for i = 1:(numTRs(run_task(r))-numDummys)                   % get nifti filenames, correcting for dummy scancs                        
+                        N{i} = [fullfile(baseDir, 'imaging_data',subj_name{s}, ...
+                            [prefix subj_name{s},'_run',runs{ss}{run_task(1,r)},'.nii,',num2str(i)])];
+                        
+                    end;
+                    J.sess(r).scans = N;                                        % number of scans in run
+                    % Loop through conditions.
+                    c_idx=1;
+                    for c = 1:numel(num_seq)+1
+                        calcRegress=0;
+                        if c<=numel(num_seq)
+                            idx = find(R.seqNumb==c & R.(colName)==0);
+                            %idx = find(R.seqNumb==c & R.isError==0); % find indx of all CORRECT trials in run - 1:6 trained; 7-12 untrained
+                        else % error
+                            idx = find(R.(colName)==1);
+                            %idx = find(R.isError==1); % find indx of all INCORRECT trials in run - 1:6 trained; 7-12 untrained
+                        end
+                        if ~isempty(idx) && c<=numel(num_seq)
+                            condName = sprintf('SeqNumb-%d',R.seqNumb(idx(1)));
+                            S.isError = 0;
+                            calcRegress=1;
+                        elseif ~isempty(idx) && c==numel(num_seq)+1
+                            condName = 'Error';
+                            S.isError = 1;
+                            calcRegress=1;
+                        end
+                        if calcRegress
+                            J.sess(r).cond(c_idx).name     = condName;
+                            % Correct start time for numDummys removed & convert to seconds
+                            J.sess(r).cond(c_idx).onset    = [R.startTimeReal(idx)/1000 - J.timing.RT*numDummys + announceTime + delay(s)];
+                            J.sess(r).cond(c_idx).duration = dur;                       % durations of task we are modeling (not length of entire trial)
+                            
+                            J.sess(r).cond(c_idx).tmod     = 0;
+                            J.sess(r).cond(c_idx).orth     = 0;
+                            J.sess(r).cond(c_idx).pmod     = struct('name', {}, 'param', {}, 'poly', {});
+                            
+                            % Do some subject info for fields in SPM_info.mat.
+                            S.SN            = s;
+                            S.run           = r;    % 1-8: functional runs
+                            S.runAll        = (ss-1)*8 + r;  % 1-32
+                            S.seqNumb       = R.seqNumb(idx(1));
+                            S.seqType       = R.seqType(idx(1));
+                            S.isMetronome   = R.isMetronome(idx(1));
+                            S.ScanSess      = R.ScanSess(idx(1));
+                            T               = addstruct(T,S);
+                            c_idx = c_idx+1;
+                        end
+                    end;
+                    % Add any additional regressors here.
+                    J.sess(r).multi     = {''};
+                    J.sess(r).regress   = struct('name', {}, 'val', {});
+                    J.sess(r).multi_reg = {''};
+                    % Define high pass filter cutoff (in seconds): see glm cases.
+                    J.sess(r).hpf       = hrf_cutoff;
+                end;
+                J.fact             = struct('name', {}, 'levels', {});
+                J.bases.hrf.derivs = [0 0];
+                J.bases.hrf.params = hrf_params;    % make it subject specific
+                J.volt             = 1;
+                J.global           = 'None';
+                J.mask             = {fullfile(baseDir, 'imaging_data',subj_name{s}, 'rmask_noskull.nii,1')};
+                J.mthresh          = 0.05;
+                J.cvi_mask         = {fullfile(baseDir, 'imaging_data',subj_name{s},'rmask_gray.nii')};
+                J.cvi              = cvi_type;
+                % Save the GLM file for this subject.
+                spm_rwls_run_fmri_spec(J);
+                % Save the aux. information file (SPM_info.mat).
+                % This file contains user-friendly information about the glm
+                % model, regressor types, condition names, etc.
+                save(fullfile(J.dir{1},'SPM_info.mat'),'-struct','T');
+                fprintf('Done constructing SPM: %s sess-%d\n',subj_name{s},ss);
+                toc(tElapsed);
+            end;    % sn
+        end
+    case 'GLM_estimate_sess_perm'
+        % Estimate the GLM from the appropriate SPM.mat file. 
+        % Make GLM files with case 'GLM_make'.
+        numPerm = 1;
+        vararginoptions(varargin,{'sn','sessN','numPerm'});
+        for ss = sessN
+            for s = sn
+                % Load files
+                load(fullfile(glmPermDir{numPerm}{ss},subj_name{s},'SPM.mat')); % add glm type
+                SPM.swd = fullfile(glmPermDir{numPerm}{ss},subj_name{s});
+                % Run the GLM.
+                spm_rwls_spm(SPM);
+            end; % sn
+        end; %sessN
+        % for checking -returns img of head movements and corrected sd vals
+        % spm_rwls_resstats(SPM)   
         
     case '4_ROI'% ------------------- ROI analysis. Expand for more info. ------
                 % The ROI cases are used to:
@@ -3742,10 +3998,28 @@ loc_AC     = {[-112 -165 -176],...
         save(fullfile(newGLMDir,'SPM.mat'),'SPM','-v7.3');
         varargout{1} = SPM;
     case 'run_job'
-       sml1_imana_prep('GLM_make_sess_error2');
-       sml1_imana_prep('GLM_estimate_sess_error','sn',[5:9,11:31],'sessN',1:4);
-       sml1_imana_prep('GLM_contrast_sess_error','sn',[5:9,11:31],'sessN',1:4);
-       otherwise
+        %sml1_imana_prep('GLM_sess_error_all','sn',[20,29],'sessN',1);
+        %sml1_imana_prep('GLM_sess_error_all','sn',29,'sessN',2);
+        sml1_imana_prep('GLM_sess_error_all','sn',28,'sessN',1:3);
+        sml1_imana_prep('GLM_sess_error_all','sn',[5:9,11:31],'sessN',4);
+        sml1_imana_dist('PSC_create','errorNum',6,'sessN',4);
+        sml1_imana_dist('PSC_create','errorNum',6,'sessN',1:2,'sn',29);
+        sml1_imana_dist('PSC_create','errorNum',6,'sessN',1,'sn',20);
+        sml1_imana_dist('BETA_get','sn',[5:9,11:27,29:31],'sessN',4,'numError',6);
+        sml1_imana_dist('BETA_get','sn',29,'sessN',1:2,'numError',6);
+        sml1_imana_dist('BETA_get','sn',20,'sessN',1,'numError',6);
+        %sml1_imana_dist('BETA_combineGroup','numError',6);
+    case 'run_job1'
+        sml1_imana_prep('GLM_sess_error_all','sn',[22:27,30:31],'sessN',1);
+        sml1_imana_prep('GLM_sess_error_all','sn',[5:9,11:27,30:31],'sessN',2);
+        sml1_imana_prep('GLM_sess_error_all','sn',[20:27,29:31],'sessN',3);
+        %sml1_imana_prep('GLM_make_sess_error2','sn',[20:27,29:31],'glm',3,'sessN',3,'numError',6);
+        %sml1_imana_prep('GLM_sess_error_all','sn',29,'glm',3,'sessN',1);
+        %sml1_imana_dist('BETA_get','sn',29,'sessN',1,'numError',6);
+        %sml1_imana_dist('BETA_combineGroup','numError',6,'sessN',1);
+        %sml1_imana_dist('BETA_stats','roi',[1:3,7,8],'numError',6);
+        sml_plasticity('PCM:corrModels_nonlinear_bCovCompare','numError',6,'withinCov','individual');
+    otherwise
         disp('there is no such case.')
 end;    % switch(what)
 end
