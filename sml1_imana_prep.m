@@ -4,7 +4,8 @@ function varargout=sml1_imana_prep(what,varargin)
 baseDir         ='/Users/eberlot/Documents/Data/SuperMotorLearning';
 %baseDir         ='/Volumes/MotorControl/data/SuperMotorLearning';
 behavDir        =[baseDir '/behavioral_data/data'];            
-imagingDir      =[baseDir '/imaging_data'];              
+%imagingDir      =[baseDir '/imaging_data'];              
+imagingDir      ='/Volumes/Eva_data/SuperMotorLearning/imaging_data';
 imagingDirRaw   =[baseDir '/imaging_data_raw'];           
 dicomDir        =[baseDir '/imaging_data_dicom'];         
 anatomicalDir   =[baseDir '/anatomicals'];       
@@ -24,6 +25,7 @@ glmLocDir       ={[baseDir '/glmLoc/glmL1'],[baseDir '/glmLoc/glmL2'],[baseDir '
 glmLocSessDir   ={[baseDir '/glmLocSess/glmLocSess1'],[baseDir '/glmLocSess/glmLocSess2'],[baseDir '/glmLocSess/glmLocSess3'],[baseDir '/glmLocSess/glmLocSess4']}; % one glm for loc run per session
 glmSessDir      ={[baseDir '/glmSess/glmSess1'],[baseDir '/glmSess/glmSess2'],[baseDir '/glmSess/glmSess3'],[baseDir '/glmSess/glmSess4']}; % one glm per session
 glmFoSExDir     ={[baseDir '/glmFoSEx/glmFoSEx1'],[baseDir '/glmFoSEx/glmFoSEx2'],[baseDir '/glmFoSEx/glmFoSEx3'],[baseDir '/glmFoSEx/glmFoSEx4']};    
+glmFoSExErrorDir ={[baseDir '/glmFoSExError/glmFoSExError1'],[baseDir '/glmFoSExError/glmFoSExError2'],[baseDir '/glmFoSExError/glmFoSExError3'],[baseDir '/glmFoSExError/glmFoSExError4']};    
 glmTrialDir     ={[baseDir '/glmTrial/glmTrial1'],[baseDir '/glmTrial/glmTrial2'],[baseDir '/glmTrial/glmTrial3'],[baseDir '/glmTrial/glmTrial4']};
 %glmSessErrorDir = {[baseDir '/glmSessError/glmSessError1'],[baseDir '/glmSessError/glmSessError2'],[baseDir '/glmSessError/glmSessError3'],[baseDir '/glmSessError/glmSessError4']};
 %glmSessErrorDir = {[baseDir '/glmSessError3/glmSessError1'],[baseDir '/glmSessError3/glmSessError2'],[baseDir '/glmSessError3/glmSessError3'],[baseDir '/glmSessError3/glmSessError4']};
@@ -1816,9 +1818,9 @@ loc_AC     = {[-112 -165 -176],...
                 J.bases.hrf.params = hrf_params;    % make it subject specific
                 J.volt 			   = 1;
                 J.global 		   = 'None';
-                J.mask 	           = {fullfile(baseDir, 'imaging_data',subj_name{s}, 'rmask_noskull.nii,1')};
+                J.mask 	           = {fullfile(imagingDir,subj_name{s}, 'rmask_noskull.nii,1')};
                 J.mthresh 		   = 0.05;
-                J.cvi_mask 		   = {fullfile(baseDir, 'imaging_data',subj_name{s},'rmask_gray.nii')};
+                J.cvi_mask 		   = {fullfile(imagingDir,subj_name{s},'rmask_gray.nii')};
                 J.cvi 			   = cvi_type;
                 % Save the GLM file for this subject.
                 spm_rwls_run_fmri_spec(J);
@@ -2492,13 +2494,265 @@ loc_AC     = {[-112 -165 -176],...
             for s=sn
                 clc;
                 tElapsed = tic;
-               % sml1_imana_prep('GLM_make_sess_error2','sn',s,'glm',glm,'sessN',ss,'numError',6);
+                sml1_imana_prep('GLM_make_sess_error2','sn',s,'glm',glm,'sessN',ss,'numError',6);
                 sml1_imana_prep('GLM_estimate_sess_error','sn',s,'sessN',ss,'numError',6);
                 sml1_imana_prep('GLM_contrast_sess_error','sn',s,'sessN',ss,'numError',6);
                 fprintf('********* Done all %s sess-%d.*********\n\n\n',subj_name{s},ss);
                 toc(tElapsed); clear SPM;
             end
         end
+        
+    case '3g_GLM_RepSup_error' % ------------- GLM for first / second exe, no errors -----------------------
+        % repsup analysis, excluding errors
+    case 'GLM_all_RepSup_error'
+        glm = 3;
+        sn = [5:9,11:31];
+        sessN = 4;
+        vararginoptions(varargin,{'sn','glm','sessN'});
+        spm fmri;
+        for ss=sessN
+            for s=sn
+                clc;
+                tElapsed = tic;
+                sml1_imana_prep('GLM_make_RepSup_error','sn',s,'glm',glm,'sessN',ss);
+                sml1_imana_prep('GLM_estimate_RepSup_error','sn',s,'sessN',ss);
+                sml1_imana_prep('GLM_contrast_RepSup_error','sn',s,'sessN',ss);
+                fprintf('********* Done all %s sess-%d.*********\n\n\n',subj_name{s},ss);
+                toc(tElapsed); clear SPM; 
+            end
+        end
+    case 'GLM_make_RepSup_error'
+        % exclude errors in designing RepSup glm
+        % if error on first execution, exclude also the second
+        % functional runs - separate regressors for first / second execution
+        % makes the GLM file for each subject, and a corresponding
+        % SPM_info.mat file. The latter file contains nice summary
+        % information of the model regressors, condition names, etc.
+        
+        glm = 3;
+        sessN = 4;
+        sn = [5:9,11:31];
+        vararginoptions(varargin,{'sn','glm','sessN'});
+        % Set some constants.
+        prefix		 = 'u';
+        dur			 = 2.5;                                                 % secs (length of task dur, not trial dur)
+        %delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 1 1];              % adjusting hrf per subject based on extracted timeseries!
+        delay     = [0.5 1 1 0.5 1 0 0 0.5 1 1 0.5 1 1 0.5 0.5 0 0.5 1 0.5 1 1 1 1 1 1 1 1 1 1 1 1];
+        announceTime = 0;                                                   % length of task announce time - currently not used
+        % Gather appropriate GLM presets.
+        switch glm
+            case 1  % wls
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = 128;
+                cvi_type   = 'wls';
+            case 2  % fast + hpf
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = 128;
+                cvi_type   = 'fast';
+            case 3  % fast, no hpf
+                hrf_params = [5.5 12.5];
+                hrf_cutoff = inf;
+                cvi_type   = 'fast';
+        end
+        for ss=sessN % session
+            % Loop through subjects / all sessions and make SPM files.
+            for s = sn
+                D = dload(fullfile(behavDir,['sml1_',subj_name{s},'.dat']));
+                T=[];
+                
+                % Do some subject structure fields.
+                dircheck(fullfile(glmFoSExErrorDir{ss},subj_name{s})); % add glm type
+                J.dir 			 = {fullfile(glmFoSExErrorDir{ss},subj_name{s})};
+                J.timing.units   = 'secs';                                      % timing unit that all timing in model will be
+                J.timing.RT 	 = 1.0;                                         % TR (in seconds, as per 'J.timing.units')
+                J.timing.fmri_t  = 16;
+                J.timing.fmri_t0 = 1;
+                
+                L = getrow(D,D.ScanSess==ss);    % only blocks of that scan session
+                
+                % Loop through runs.
+                for r = 1:numruns_task_sess
+                    if ss == 4
+                        Rr = getrow(L,L.blockType==9); %blockType==9 - func imaging run without metronome
+                    else
+                        Rr = getrow(L,L.blockType==3); %blockType==3 - funct imaging run with metornome
+                    end
+                    
+                    uniqrun=unique(Rr.BN);
+                    R = getrow(Rr,Rr.BN==uniqrun(r)); % 1-8 func runs of the session
+                    
+                    for i = 1:(numTRs(run_task(r))-numDummys)                   % get nifti filenames, correcting for dummy scancs
+                        
+                        N{i} = [fullfile(imagingDir,subj_name{s}, ...
+                            [prefix subj_name{s},'_run',runs{ss}{run_task(1,r)},'.nii,',num2str(i)])];
+                        
+                    end;
+                    J.sess(r).scans = N;  % number of scans in run
+                    % here adjust error variable
+                    % if error on exe 1, don't take exe2
+                    errorTrial = zeros(size(R.isError));
+                    errorTrial(R.numError>0 & R.FoSEx==1)=1; %>2 or >0
+                    errorTrial(find(errorTrial)+1)=1; % exclude for exe2
+                    errorTrial(R.numError>0 & R.FoSEx==2)=1;% trials where only mistake on exe2
+                    % Loop through conditions.
+                    idxCond = 1; c_idx = 1; % idxCond for all, c_idx for those which end up being regressors
+                    for exe = 1:2 % execution 1 and 2
+                        if exe==1
+                            loopSeq = 12;
+                        else
+                            loopSeq = 13; % 7 added for all errors
+                        end
+                        for c = 1:loopSeq
+                            calcRegress = 0;
+                            if idxCond<=numel(num_seq)*2 % if done all sequences in first and second exe
+                                idx = find(R.seqNumb==c & errorTrial==0 & R.FoSEx==exe); 
+                            else % error
+                                idx = find(errorTrial==1); % find indx of all CORRECT trials in run - 1:6 trained; 7-12 untrained
+                            end
+                            if ~isempty(idx) && c<=numel(num_seq)
+                                condName = sprintf('SeqNumb-%d-Ex%d',R.seqNumb(idx(1)),exe);
+                                S.isError = 0;
+                                calcRegress=1;
+                            elseif ~isempty(idx) && c==numel(num_seq)+1 % only on second exe
+                                condName = 'Error';
+                                S.isError = 1;
+                                calcRegress=1;
+                            end        
+                            if calcRegress
+                                J.sess(r).cond(c_idx).name 	   = condName;
+                                % Correct start time for numDummys removed & convert to seconds
+                                J.sess(r).cond(c_idx).onset    = [R.startTimeReal(idx)/1000 - J.timing.RT*numDummys + announceTime + delay(s)];
+                                J.sess(r).cond(c_idx).duration = dur;                       % durations of task we are modeling (not length of entire trial)
+                                
+                                J.sess(r).cond(c_idx).tmod     = 0;
+                                J.sess(r).cond(c_idx).orth     = 0;
+                                J.sess(r).cond(c_idx).pmod     = struct('name', {}, 'param', {}, 'poly', {});
+                                
+                                % Do some subject info for fields in SPM_info.mat.
+                                S.SN    		= s;
+                                S.run   		= r;    % 1-8: functional runs
+                                S.runAll        = (ss-1)*8 + r;  % 1-32
+                                S.seqNumb 		= R.seqNumb(idx(1));
+                                S.seqType    	= R.seqType(idx(1));
+                                S.FoSEx         = R.FoSEx(idx(1));
+                                S.isMetronome   = R.isMetronome(idx(1));
+                                S.ScanSess      = R.ScanSess(idx(1));
+                                T				= addstruct(T,S);
+                                clear idx;
+                                c_idx = c_idx+1;
+                            end
+                            idxCond = idxCond+1;
+                        end
+                    end
+                    % Add any additional regressors here.
+                    J.sess(r).multi 	= {''};
+                    J.sess(r).regress 	= struct('name', {}, 'val', {});
+                    J.sess(r).multi_reg = {''};
+                    % Define high pass filter cutoff (in seconds): see glm cases.
+                    J.sess(r).hpf 		= hrf_cutoff;
+                end;
+                J.fact 			   = struct('name', {}, 'levels', {});
+                J.bases.hrf.derivs = [0 0];
+                J.bases.hrf.params = hrf_params;    % make it subject specific
+                J.volt 			   = 1;
+                J.global 		   = 'None';
+                J.mask 	           = {fullfile(imagingDir,subj_name{s}, 'rmask_noskull.nii,1')};
+                J.mthresh 		   = 0.05;
+                J.cvi_mask 		   = {fullfile(imagingDir,subj_name{s},'rmask_gray.nii')};
+                J.cvi 			   = cvi_type;
+                % Save the GLM file for this subject.
+                spm_rwls_run_fmri_spec(J);
+                % Save the aux. information file (SPM_info.mat).
+                % This file contains user-friendly information about the glm
+                % model, regressor types, condition names, etc.
+                save(fullfile(J.dir{1},'SPM_info.mat'),'-struct','T');
+            end;    % sn
+        end
+    case 'GLM_estimate_RepSup_error'
+        % Estimate the GLM from the appropriate SPM.mat file. 
+        % Make GLM files with case 'GLM_make'.
+        vararginoptions(varargin,{'sn','sessN'});
+        for ss = sessN
+            for s = sn
+                % Load files
+                load(fullfile(glmFoSExErrorDir{ss},subj_name{s},'SPM.mat')); % add glm type
+                SPM.swd = fullfile(glmFoSExErrorDir{ss},subj_name{s});
+                % Run the GLM.
+                spm_rwls_spm(SPM);
+            end; % sn
+        end; %sessN
+        % for checking -returns img of head movements and corrected sd vals
+        % spm_rwls_resstats(SPM)
+    case 'GLM_contrast_RepSup_error'
+         % enter sn, sessN #
+        % 1:   Trained seq vs. rest
+        % 2:   Novel seq vs. rest   
+        sn=[5:9,11:31];
+        sessN=4;
+        vararginoptions(varargin,{'sn','sessN','glm'});
+        cwd = pwd;
+        for ss=sessN
+            % Loop through subjects.
+            for s = sn  
+                glmSubjDir = fullfile(glmFoSExErrorDir{ss},subj_name{s}); % add glm type
+                cd(glmSubjDir);
+                load SPM;
+                SPM = rmfield(SPM,'xCon');
+                T   = load('SPM_info.mat');
+                if ~strcmp(SPM.swd,fullfile(glmFoSExErrorDir{ss},subj_name{s}));
+                    SPM=sml1_imana_prep('HOUSEKEEPING_renameSPM','sn',s,'SPM',SPM,'glmDir',glmFoSExErrorDir{ss});
+                end
+                %_____t contrast for trained seq 1st vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb<7 & T.FoSEx==1 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(1)                                     = spm_FcUtil('Set',sprintf('TrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for trained seq 2nd vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb<7 & T.FoSEx==2 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(2)                                     = spm_FcUtil('Set',sprintf('TrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for untrained seq 1st vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx==1 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(3)                                     = spm_FcUtil('Set',sprintf('UntrainSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for untrained seq 2nd vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx==2 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(4)                                     = spm_FcUtil('Set',sprintf('UntrainSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for all seq 1st vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx==1 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(5)                                     = spm_FcUtil('Set',sprintf('AllSeq_1st'), 'T', 'c',con',SPM.xX.xKXs);
+                
+                %_____t contrast for all seq 2nd vs. rest
+                con                                             = zeros(1,size(SPM.xX.X,2));
+                con(:,T.seqNumb>6 & T.FoSEx==2 & T.isError==0)  = 1;
+                con                                             = con/sum(con);
+                SPM.xCon(6)                                     = spm_FcUtil('Set',sprintf('AllSeq_2nd'), 'T', 'c',con',SPM.xX.xKXs);
+                %____do the constrasts
+                SPM = spm_contrasts(SPM,[1:length(SPM.xCon)]);
+                save('SPM.mat','SPM');
+                % rename contrast images and spmT images
+                conName = {'con','spmT'};
+                for i=1:length(SPM.xCon),
+                    for n=1:numel(conName),
+                        oldName{i} = fullfile(glmSubjDir,sprintf('%s_%2.4d.nii',conName{n},i));
+                        newName{i} = fullfile(glmSubjDir,sprintf('%s_%s.nii',conName{n},SPM.xCon(i).name));
+                        movefile(oldName{i},newName{i});
+                    end
+                end
+                fprintf('All sequence contrast done for %s in session-%d!\n\n',subj_name{s},ss);
+            end; % sn
+        end; %sessN
+        cd(cwd);    
         
     case 'BEH_add_numErrors'
         % here add number of errors - for scanner sessions

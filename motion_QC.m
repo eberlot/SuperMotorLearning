@@ -34,7 +34,7 @@ start=[0 cumsum(SPM.nscan)]+1;
 % call text files with movement parameters
 for i=1:length(SPM.nscan)
     [~,filename]=spm_fileparts(SPM.xY.VY(start(i)).fname);
-    filename = filename(2:end); % temporary
+    %filename = filename(2:end); % temporary
     if exist('prefix')
         filename = [prefix filename];
     end

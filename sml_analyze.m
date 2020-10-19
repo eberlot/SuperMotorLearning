@@ -1,8 +1,8 @@
 function varargout=sml_analyze (what, varargin)
 
 prefix = 'sml1_';
-baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
-%baseDir = '/Volumes/MotorControl/data/SuperMotorLearning';
+%baseDir = '/Users/eberlot/Documents/Data/SuperMotorLearning';
+baseDir = '/Volumes/MotorControl/data/SuperMotorLearning';
 behDir  = fullfile(baseDir,'behavioral_data');
 anaDir  = fullfile(behDir,'analyze');
 memoryDir = fullfile(behDir,'memory');

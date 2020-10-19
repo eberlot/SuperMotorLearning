@@ -1,4 +1,4 @@
-function [dPrime c] = dprime(HIT,FA,N)
+function [dPrime, c] = dprime(HIT,FA,N)
 %function [dPrime c] = dprime(HIT,FA,N)
 % This function calculates the criterion c and information d' values.
 % use as: dprime(HIT,FA,N)
@@ -27,7 +27,5 @@ zFA = norminv(FA/N);
 dPrime = zHit - zFA;
 
 % calculate bias / criterion
-
 c = (zHit + zFA)/2;
-
 end

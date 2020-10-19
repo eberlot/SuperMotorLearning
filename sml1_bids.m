@@ -247,6 +247,53 @@ switch what
     case 'run_job'
         sml1_bids('COPY:fmap');
         sml1_bids('COPY:func');
+        
+        
+    case 'test_RH' % extra
+        % here create a file for right hand tests
+        behDir =[locDir '/behavioral_data'];
+
+        B=load(fullfile(behDir,'analyze','testsRH.mat'));
+        B = getrow(B,B.SN~=4 & ismember(B.seqType,[1,4]));
+        B.seqType(B.seqType>1) = 2;
+        B.day(B.day==19)=20;
+        B.day(B.day==11)=13;
+
+        % test plotting
+        [MT,idx,~] = pivottable([B.day B.SN],[B.seqType],B.MT,'nanmedian','subset',B.isError==0);
+        K.MT = MT(:);
+        K.seqType = [ones(size(MT,1),1);ones(size(MT,1),1)*2];
+        K.day = [idx(:,1);idx(:,1)];
+        K.sn  = [idx(:,2);idx(:,2)];
+        figure
+        plt.box(K.day,K.MT,'split',K.seqType); title('behavior');
+        
+        % continue
+        for s=1:length(sn_old)
+            B.SN(B.SN==sn_old(s))=sn_new(s);
+        end
+        % so seqNumb is continuous
+        B.seqNumb(B.seqNumb>29) = B.seqNumb(B.seqNumb>29)-23;
+       
+        % structure with relevant fields
+        SN = B.SN;
+        %day = B.day;
+        test_day = B.day;
+        test_day(test_day==3)=1;
+        test_day(test_day==8)=2;
+        test_day(test_day==13)=3;
+        test_day(test_day==20)=4;
+        seq_type = B.seqType;
+        seq_num = B.seqNumb;
+        digit_cue = B.cueP;
+        points = B.points;
+        is_error = B.isError;
+        movement_time = B.MT;
+        repetition = B.FoSEx;
+        % get into tsv
+        t = table(SN,test_day,seq_type,seq_num,points,is_error,movement_time,repetition,digit_cue);
+        writetable(t,'behavioralData.tsv','FileType','text','Delimiter','\t');
+        keyboard;
     otherwise 
         fprintf('Wrong case!\n');
 end
